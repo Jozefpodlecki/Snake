@@ -394,7 +394,7 @@ pub fn run() -> Result<(), JsValue> {
     let window = &game_context.window;
 
     request_animation_frame(copied_func_ref.borrow().as_ref().unwrap());
-    image.add_event_listener_with_callback("load", on_image_load.as_ref().unchecked_ref());
+    //image.add_event_listener_with_callback("load", on_image_load.as_ref().unchecked_ref());
     window.add_event_listener_with_callback("keydown", on_key_down.as_ref().unchecked_ref());
     window.add_event_listener_with_callback("click", on_mouse_click.as_ref().unchecked_ref());
     window.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref());
