@@ -9,7 +9,7 @@ module.exports = {
     output: {
         path: __dirname,
         publicPath: '/snake/',
-        filename: 'index.js'
+        filename: 'app.js'
     },
     resolve: {
         extensions: [".ts", ".js"]
