@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
+    "build": "webpack --config webpack.development.js",
+    "build:production": "webpack --config webpack.production.js",
     "serve": "webpack-dev-server  --config webpack.development.js"
   },
   "author": "",
