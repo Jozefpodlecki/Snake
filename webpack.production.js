@@ -2,13 +2,14 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
+const githubRepoName = 'Snake';
 
 module.exports = {
     mode: 'production',
     entry: "./index.js",
     output: {
         path: __dirname,
-        publicPath: '/snake/',
+        publicPath: `/${githubRepoName}/`,
         filename: 'app.js'
     },
     resolve: {
