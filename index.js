@@ -1,8 +1,7 @@
-const game = import("./pkg/snake_game")
+const onLoad = async () => {
+	const game = await import("snake-game");
 
-window.addEventListener("load", () => {
-  game.then(code => {
-    code.run();
-  })
-})
+	game.run()
+}
 
+window.addEventListener("load", onLoad);
