@@ -35,5 +35,13 @@ features = [
     'KeyEvent',
     'TextMetrics',
     'Node',
-    'Window'
+    'Window',
+    'WebGlRenderingContext',
+    'WebGlProgram',
+    'WebGlShader',
+    'WebGlBuffer',
+    'WebGlUniformLocation',
+    'WebGlTexture',
+    'WebGlFramebuffer',
+    'WebGlRenderbuffer'
 ]
