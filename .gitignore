@@ -1,3 +1,5 @@
-/target
+target/
+pkg
 Cargo.lock
 node_modules
+dist

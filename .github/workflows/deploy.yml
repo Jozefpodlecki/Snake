@@ -24,12 +24,12 @@ jobs:
         
       - run: wasm-pack build --target web
       - run: npm install
-      - run: npx rollup -c
+      - run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "./dist"
+          path: "./web/dist"
 
   deploy:
     needs: build
