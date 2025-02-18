@@ -53,7 +53,6 @@ impl Food {
     fn random_position(grid_size: i32) -> (i32, i32) {
         let x = (Math::random() * grid_size as f64) as i32;
         let y = (Math::random() * grid_size as f64) as i32;
-        console_log!("x {} y {}", x, y);
         (x, y)
 
     }
@@ -132,6 +131,7 @@ impl Snake {
         let vertices_array = self.compute_vertices();
         let length = vertices_array.length();
         let buffer_size = (length * 4) as i32;
+        let verticle_size = (length / 6) as i32;
 
         // context.buffer_data_with_array_buffer_view(
         //     WebGlRenderingContext::ARRAY_BUFFER,
@@ -147,7 +147,7 @@ impl Snake {
             &vertices_array,
         );
         
-        context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 30);
+        context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, verticle_size);
         // context.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (length / 2) as i32);
     }
 
