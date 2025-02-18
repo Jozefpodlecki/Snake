@@ -1,10 +1,8 @@
 use js_sys::{Float32Array, Math};
 use wasm_bindgen::JsValue;
-use web_sys::{console, WebGlRenderingContext};
+use web_sys::{console, WebGlBuffer, WebGl2RenderingContext};
 
-macro_rules! console_log {
-    ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
-}
+use crate::console_log;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -20,21 +18,32 @@ pub struct GameContext {
     pub height: f32,
     pub current_direction: Direction,
     pub grid_size: i32,
-    pub can_run: bool
+    pub can_run: bool,
+    pub position_buffer: Option<WebGlBuffer>
 }
 
 pub struct Food {
     position: (i32, i32),
     grid_size: i32,
     cell_size: f32,
+    spacing: f32,
+    color: [f32; 4]
 }
 
 impl Food {
     pub fn new(grid_size: i32) -> Self {
         let position = Self::random_position(grid_size);
         let cell_size = 2.0 / grid_size as f32;
+        let spacing = 0.01;
+        let color = [1.0, 0.647, 0.0, 1.0];
 
-        Food { position, grid_size, cell_size }
+        Food { 
+            position,
+            grid_size,
+            cell_size,
+            spacing,
+            color
+        }
     }
 
     pub fn respawn(&mut self) {
@@ -49,34 +58,42 @@ impl Food {
 
     }
 
-    pub fn draw(&self, context: &WebGlRenderingContext) {
+    pub fn draw(&self, context: &WebGl2RenderingContext) {
         let vertices_array = self.compute_vertices();
         let length = vertices_array.length();
+        let buffer_size = (length * 4) as i32;
 
-        context.buffer_data_with_array_buffer_view(
-            WebGlRenderingContext::ARRAY_BUFFER,
-            &vertices_array,
-            WebGlRenderingContext::STATIC_DRAW,
-        );
+        // context.buffer_data_with_array_buffer_view(
+        //     WebGlRenderingContext::ARRAY_BUFFER,
+        //     &vertices_array,
+        //     WebGlRenderingContext::STATIC_DRAW,
+        // );
 
-        context.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (length / 2) as i32);
+        // context.buffer_data_with_i32(WebGlRenderingContext::ARRAY_BUFFER, buffer_size, WebGlRenderingContext::DYNAMIC_DRAW);
+
+        // context.buffer_sub_data_with_i32_and_array_buffer_view(
+        //     WebGlRenderingContext::ARRAY_BUFFER,
+        //     0,
+        //     &vertices_array,
+        // );
+
+        // context.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (length / 2) as i32);
     }
-
 
     fn compute_vertices(&self) -> Float32Array {
         let (x, y) = self.position;
-        let x1 = x as f32 * self.cell_size - 1.0 + 0.01;
-        let y1 = y as f32 * self.cell_size - 1.0 + 0.01;
-        let x2 = x1 + self.cell_size - 0.01;
-        let y2 = y1 + self.cell_size - 0.01;
+        let x1 = x as f32 * self.cell_size - 1.0 + self.spacing;
+        let y1 = y as f32 * self.cell_size - 1.0 + self.spacing;
+        let x2 = x1 + self.cell_size - self.spacing;
+        let y2 = y1 + self.cell_size - self.spacing;
 
-        let vertices: [f32; 12] = [
-            x1, y1,
-            x2, y1,
-            x1, y2,
-            x1, y2,
-            x2, y1,
-            x2, y2,
+        let vertices: [f32; 36] = [
+            x1, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+            x2, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+            x1, y2, self.color[0], self.color[1], self.color[2], self.color[3],
+            x1, y2, self.color[0], self.color[1], self.color[2], self.color[3],
+            x2, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+            x2, y2, self.color[0], self.color[1], self.color[2], self.color[3],
         ];
 
         unsafe { Float32Array::view(&vertices) }
@@ -90,13 +107,15 @@ pub struct Snake {
     grid_size: i32,
     cell_size: f32,
     spacing: f32,
+    color: [f32; 4]
 }
 
 impl Snake {
     pub fn new(direction: Direction, grid_size: i32) -> Self {
-        let body = Self::initialize_body();
+        let body = Self::initialize_body(5);
         let cell_size = 2.0 / grid_size as f32;
         let spacing = 0.01;
+        let color = [0.5, 0.5, 0.5, 1.0];
 
         Snake {
             body,
@@ -104,21 +123,32 @@ impl Snake {
             direction,
             grid_size,
             cell_size,
-            spacing
+            spacing,
+            color
         }
     }
 
-    pub fn draw(&self, context: &WebGlRenderingContext) {
+    pub fn draw(&self, context: &WebGl2RenderingContext) {
         let vertices_array = self.compute_vertices();
         let length = vertices_array.length();
+        let buffer_size = (length * 4) as i32;
 
-        context.buffer_data_with_array_buffer_view(
-            WebGlRenderingContext::ARRAY_BUFFER,
+        // context.buffer_data_with_array_buffer_view(
+        //     WebGlRenderingContext::ARRAY_BUFFER,
+        //     &vertices_array,
+        //     WebGlRenderingContext::STATIC_DRAW,
+        // );
+
+        context.buffer_data_with_i32(WebGl2RenderingContext::ARRAY_BUFFER, buffer_size, WebGl2RenderingContext::DYNAMIC_DRAW);
+
+        context.buffer_sub_data_with_i32_and_array_buffer_view(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            0,
             &vertices_array,
-            WebGlRenderingContext::STATIC_DRAW,
         );
         
-        context.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (length / 2) as i32);
+        context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 30);
+        // context.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (length / 2) as i32);
     }
 
     pub fn change_direction(&mut self, direction: Direction) {
@@ -146,8 +176,25 @@ impl Snake {
         self.body.push(new_segment);
     }
 
+    pub fn is_self_collision(&self) -> bool {
+        let head = self.body[0];
+
+        for &segment in self.body.iter().skip(1) {
+            if segment == head {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub fn overlaps(&self, food: &Food) -> bool {
         self.body[0] == food.position
+    }
+
+    pub fn reset(&mut self) {
+        self.body = Self::initialize_body(3);
+        self.direction = Direction::Right;
     }
 
     pub fn traverse(&mut self) {
@@ -171,18 +218,22 @@ impl Snake {
         self.body[0] = new_head;
     }
 
-    fn initialize_body() -> Vec<(i32, i32)> {
+    fn initialize_body(length: usize) -> Vec<(i32, i32)> {
         let mut body = Vec::new();
-        body.push((10, 10));
-        body.push((9, 10));
-        body.push((8, 10));
+        
+        let start_x = 10;
+        let start_y = 10;
+    
+        for i in 0..length {
+            body.push((start_x - i as i32, start_y));
+        }
+
         body
     }
 
     fn compute_vertices(&self) -> Float32Array {
         
         let mut all_vertices = Vec::new();
-        
 
         for &(x, y) in &self.body {
             let x1 = x as f32 * self.cell_size - 1.0 + self.spacing;
@@ -190,13 +241,13 @@ impl Snake {
             let x2 = x1 + self.cell_size - self.spacing;
             let y2 = y1 + self.cell_size - self.spacing * 1.5;
 
-            let vertices: [f32; 12] = [
-                x1, y1,
-                x2, y1,
-                x1, y2,
-                x1, y2,
-                x2, y1,
-                x2, y2,
+            let vertices: [f32; 36] = [
+                x1, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+                x2, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+                x1, y2, self.color[0], self.color[1], self.color[2], self.color[3],
+                x1, y2, self.color[0], self.color[1], self.color[2], self.color[3],
+                x2, y1, self.color[0], self.color[1], self.color[2], self.color[3],
+                x2, y2, self.color[0], self.color[1], self.color[2], self.color[3],
             ];
     
             all_vertices.extend_from_slice(&vertices);

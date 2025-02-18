@@ -1,3 +1,4 @@
+use js_sys::Function;
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 

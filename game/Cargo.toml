@@ -40,6 +40,7 @@ features = [
     'Node',
     'Window',
     'WebGlRenderingContext',
+    'WebGl2RenderingContext',
     'WebGlProgram',
     'WebGlShader',
     'WebGlBuffer',

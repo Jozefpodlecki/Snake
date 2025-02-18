@@ -1,20 +1,20 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::{Document, Event, EventTarget, HtmlCanvasElement, KeyboardEvent, WebGlProgram, WebGlRenderingContext, WebGlShader, Window};
+use web_sys::{Document, Event, EventTarget, HtmlCanvasElement, KeyboardEvent, WebGlProgram, WebGl2RenderingContext, WebGlShader, Window};
 
-use crate::{constants::{FS_SOURCE, VS_SOURCE}, models::{Direction, Snake}};
+use crate::{constants::{FS_SOURCE, VS_SOURCE}, models::{Direction, GameContext, Snake}};
 
 pub type ShareduEventClosure = Rc<RefCell<Option<Closure<dyn FnMut(Event)>>>>;
 pub type Sharedf64Closure = Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>;
 
-pub fn create_shader(context: &WebGlRenderingContext, shader_type: u32, source: &str) -> Option<WebGlShader> {
+pub fn create_shader(context: &WebGl2RenderingContext, shader_type: u32, source: &str) -> Option<WebGlShader> {
     let shader = context.create_shader(shader_type).unwrap();
 
     context.shader_source(&shader, source);
     context.compile_shader(&shader);
 
-    let is_success = context.get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS);
+    let is_success = context.get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS);
 
     if !is_success.as_bool().unwrap_or_default() {
         context.get_shader_info_log(&shader);
@@ -26,7 +26,7 @@ pub fn create_shader(context: &WebGlRenderingContext, shader_type: u32, source: 
 }
 
 pub fn create_program(
-    context: &WebGlRenderingContext,
+    context: &WebGl2RenderingContext,
     vertex_shader: WebGlShader,
     fragment_shader: WebGlShader) -> Option<WebGlProgram> {
     let program = context.create_program().unwrap();
@@ -35,7 +35,7 @@ pub fn create_program(
     context.attach_shader(&program, &fragment_shader);
     context.link_program(&program);
 
-    let is_success = context.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS);
+    let is_success = context.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS);
 
     if !is_success.as_bool().unwrap_or_default() {
         context.get_program_info_log(&program);
@@ -46,20 +46,27 @@ pub fn create_program(
     Some(program)
 }
 
-pub fn setup_webgl(context: &WebGlRenderingContext) {
+pub fn setup_webgl(context: &WebGl2RenderingContext, game_context: &mut GameContext) {
 
-    let vertex_shader = create_shader(&context, WebGlRenderingContext::VERTEX_SHADER, VS_SOURCE).unwrap();
-    let fragment_shader = create_shader(&context, WebGlRenderingContext::FRAGMENT_SHADER, FS_SOURCE).unwrap();
+    let vertex_shader = create_shader(&context, WebGl2RenderingContext::VERTEX_SHADER, VS_SOURCE).unwrap();
+    let fragment_shader = create_shader(&context, WebGl2RenderingContext::FRAGMENT_SHADER, FS_SOURCE).unwrap();
     let program = create_program(&context, vertex_shader, fragment_shader).unwrap();
 
     context.use_program(Some(&program));
+    
     let position_buffer = context.create_buffer();
+    game_context.position_buffer = position_buffer.clone();
+    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, position_buffer.as_ref());
 
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, position_buffer.as_ref());
     let position_location = context.get_attrib_location(&program, "a_position") as u32;
+    let stride = 6 * 4;
 
     context.enable_vertex_attrib_array(position_location);
-    context.vertex_attrib_pointer_with_i32(position_location, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
+    context.vertex_attrib_pointer_with_i32(position_location, 2, WebGl2RenderingContext::FLOAT, false, stride, 0);
+
+    let color_location = context.get_attrib_location(&program, "a_color") as u32;
+    context.vertex_attrib_pointer_with_i32(color_location, 4, WebGl2RenderingContext::FLOAT, false, stride, 2 * 4);
+    context.enable_vertex_attrib_array(color_location);
 }
 
 pub fn create_key_direction_map() -> HashMap<String, Direction> {
@@ -107,7 +114,7 @@ pub fn setup_key_bindings(document: Document, snake: Rc<RefCell<Snake>>) {
 pub fn on_resize(
     window: Window,
     canvas: HtmlCanvasElement,
-    context: WebGlRenderingContext) {
+    context: WebGl2RenderingContext) {
     let width = window.inner_width().unwrap().as_f64().unwrap();
     let height = window.inner_height().unwrap().as_f64().unwrap();
     
@@ -119,7 +126,7 @@ pub fn on_resize(
 pub fn setup_on_resize(
     window: Window,
     canvas: HtmlCanvasElement,
-    context: WebGlRenderingContext
+    context: WebGl2RenderingContext
 ) {
 
     let window_inner = window.clone();

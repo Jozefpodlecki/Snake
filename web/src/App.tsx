@@ -17,10 +17,15 @@ function App() {
 
         const options = {
             id: "canvas",
-            frame_threshold_ms: 122
+            frame_threshold_ms: 122,
+            onGameOver
         }
 
-        run(options, onScore);
+        run(options, onScore, onGameOver);
+    }
+
+    function onGameOver() {
+        setScore(0);
     }
 
     function onScore() {
