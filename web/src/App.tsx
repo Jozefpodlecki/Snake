@@ -52,6 +52,7 @@ function App() {
 
     function onGameOver() {
         setScore(0);
+        pause();
     }
 
     function onScore() {

@@ -33,6 +33,13 @@ const Panel: FC<Props> = ({
     onOptionChange,
     onToggle}) => {
 
+    const onGridSizeChange = (gridSize: number) => {
+        onOptionChange({
+            ...options,
+            gridSize
+        })
+    }
+
     const onFpsOptionChange = (fps: number) => {
         onOptionChange({
             ...options,
@@ -67,6 +74,13 @@ const Panel: FC<Props> = ({
                             onChange={onFpsOptionChange}
                             options={fpsOptions}
                         />
+                        <h4 className="mt-2">Grid size</h4>
+                        <Slider
+                            min={20}
+                            max={40}
+                            value={options.gridSize}
+                            onChange={onGridSizeChange}
+                            />
                         <h4 className="mt-2">Food count</h4>
                         <Slider
                             min={1}

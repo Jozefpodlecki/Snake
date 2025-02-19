@@ -76,11 +76,12 @@ pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
     if let Some(game_options) = &OPTIONS {
         let mut game_options = game_options.borrow_mut();
         game_options.fps = options.fps;
+        game_options.grid_size = options.grid_size;
         game_options.frame_threshold_ms = options.frame_threshold_ms;
     }
 
     if let Some(game) = &GAME {
-        game.borrow_mut().apply_options_and_reset(options.food_count);
+        game.borrow_mut().apply_options_and_reset(options.grid_size, options.food_count);
     }
 
     Ok(())

@@ -68,8 +68,12 @@ impl<T: InvokeJs> Game<T> {
         }
     }
 
-    pub fn apply_options_and_reset(&mut self, food_count: u32) {
+    pub fn apply_options_and_reset(&mut self, grid_size: i32, food_count: u32) {
+        self.grid_size = grid_size;
         self.food_count = food_count;
+        self.cell_size = 2.0 / grid_size as f32;
+
+        self.snake.resize(grid_size, self.cell_size);
 
         self.reset();
     }

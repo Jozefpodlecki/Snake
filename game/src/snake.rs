@@ -7,7 +7,7 @@ pub struct Snake {
     grid_size: i32,
     cell_size: f32,
     spacing: f32,
-    color: [f32; 4]
+    color: [f32; 4],
 }
 
 impl Snake {
@@ -21,7 +21,7 @@ impl Snake {
             grid_size,
             cell_size,
             spacing,
-            color
+            color,
         }
     }
 
@@ -66,6 +66,11 @@ impl Snake {
         self.body[0] == food.position
     }
 
+    pub fn resize(&mut self, grid_size: i32, cell_size: f32) {
+        self.grid_size = grid_size;
+        self.cell_size = cell_size;
+    }
+
     pub fn reset(&mut self) {
         self.body = Self::initialize_body(3);
         self.direction = Direction::Right;
@@ -84,6 +89,8 @@ impl Snake {
 
         new_head.0 = (new_head.0 + self.grid_size) % self.grid_size;
         new_head.1 = (new_head.1 + self.grid_size) % self.grid_size;
+
+        let test: std::iter::Rev<std::ops::Range<usize>> = (1..self.body.len()).rev();
 
         for i in (1..self.body.len()).rev() {
             self.body[i] = self.body[i - 1];
