@@ -1,33 +1,31 @@
-use std::{cell::RefCell, rc::Rc, sync::{Arc, LazyLock, Mutex}, task::Context};
+use std::{cell::RefCell, rc::Rc};
 
-use js_sys::{Float32Array, Function};
-use models::{Direction, Food, GameContext, Snake};
-use options::Options;
+use game::Game;
+use js_sys::Function;
+use models::GameOptions;
+use renderer::Renderer;
 use utils::*;
 use wasm_bindgen::prelude::*;
 use web_sys::{window, WebGl2RenderingContext, Window};
 
 mod utils;
 mod constants;
-mod options;
 mod models;
 mod macros;
+mod game;
+mod food;
+mod snake;
+mod renderer;
+mod colors;
 
-static mut GAME_CONTEXT: GameContext = GameContext {
-    score: 0,
-    current_direction: Direction::Right,
-    height: 0.0,
-    width: 0.0,
-    grid_size: 30,
-    can_run: true,
-    position_buffer: None
-};
+static mut OPTIONS: Option<Rc<RefCell<GameOptions>>> = None;
+static mut GAME: Option<Rc<RefCell<Game<Function>>>> = None;
 
 #[wasm_bindgen]
 pub unsafe fn run(options: JsValue,
     on_score: Function,
     on_game_over: Function) -> Result<(), JsValue> {
-    let options: Options = serde_wasm_bindgen::from_value(options).unwrap();
+    let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
     let window = window().unwrap();
     let document = window.document().unwrap();
@@ -35,127 +33,131 @@ pub unsafe fn run(options: JsValue,
         .get_element_by_id(&options.id).unwrap()
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
 
-    let snake = Rc::new(RefCell::new(Snake::new(Direction::Right, GAME_CONTEXT.grid_size)));
+    let game = Rc::new(RefCell::new(Game::new(
+        options.grid_size,
+        options.food_count,
+        on_score,
+        on_game_over)));
+
+    GAME = Some(game.clone());
+    OPTIONS = Some(Rc::new(RefCell::new(options)));
 
     let context = canvas
         .get_context("webgl2").unwrap().unwrap()
         .dyn_into::<WebGl2RenderingContext>()?;
 
+    let renderer = Rc::new(RefCell::new(Renderer::new(context.clone())));
+
     on_resize(window.clone(), canvas.clone(), context.clone());
 
-    setup_webgl(&context, &mut GAME_CONTEXT);
+    setup_webgl(&context);
 
     let version = context.get_parameter(WebGl2RenderingContext::VERSION).unwrap();
-    // let max_element_index = context.get_parameter(WebGlRenderingContext::MAX);
     let max_texture_size = context.get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE).unwrap();
-    // console_log!("Max element index: {}", max_element_index.as_f64().unwrap());
     console_log!("Version: {}", version.as_string().unwrap());
     console_log!("Max texture size: {}", max_texture_size.as_f64().unwrap());
   
     setup_on_resize(window.clone(), canvas, context.clone());
-    setup_key_bindings(document, snake.clone());
-    setup_request_animation_frame(
+    setup_key_bindings(document, game.clone());
+    start_game_loop(
         window,
-        context,
-        Rc::new(options),
-        snake,
-        on_score,
-        on_game_over);
+        game.clone(),
+        renderer);
 
-    GAME_CONTEXT.can_run = true;
+    game.borrow_mut().can_run = true;
 
     Ok(())
 }
 
 #[wasm_bindgen]
-pub unsafe fn stop() -> Result<(), JsValue> {
+pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
+    let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
-    GAME_CONTEXT.can_run = false;
+    if let Some(game_options) = &OPTIONS {
+        let mut game_options = game_options.borrow_mut();
+        game_options.fps = options.fps;
+        game_options.frame_threshold_ms = options.frame_threshold_ms;
+    }
+
+    if let Some(game) = &GAME {
+        game.borrow_mut().apply_options_and_reset(options.food_count);
+    }
 
     Ok(())
 }
 
-unsafe fn setup_request_animation_frame(
+#[wasm_bindgen]
+pub unsafe fn play() -> Result<(), JsValue> {
+
+    set_run(true);
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub unsafe fn pause() -> Result<(), JsValue> {
+
+    set_run(false);
+
+    Ok(())
+}
+
+unsafe fn set_run(flag: bool) {
+    if let Some(game) = &GAME {
+        game.borrow_mut().can_run = flag;
+    }
+}
+
+unsafe fn on_game_loop(
+    game: Rc<RefCell<Game<Function>>>,
+    renderer: Rc<RefCell<Renderer>>) {
+    let mut game = game.borrow_mut();
+
+    game.update_and_notify_ui();
+
+    if game.is_over() {
+        game.reset_and_notify_ui();
+    }
+
+    let vertices = game.get_vertices();
+    let vertices_length = (vertices.length() / 6) as i32;
+    renderer.borrow_mut().draw_vertices(&vertices, vertices_length);
+}
+
+unsafe fn start_game_loop(
     window: Window,
-    context: WebGl2RenderingContext,
-    options: Rc<Options>,
-    snake: Rc<RefCell<Snake>>,
-    on_score: Function,
-    on_game_over: Function) {
+    game: Rc<RefCell<Game<Function>>>,
+    renderer: Rc<RefCell<Renderer>>) {
     let closure: Sharedf64Closure = Rc::new(RefCell::new(None));
 
     let closure_mut = closure.clone();
     let window_inner = window.clone();
     let closure_inner = closure.clone();
     let last_timestamp = Rc::new(RefCell::new(0.0));
-    // let mut food = Food::new(GAME_CONTEXT.grid_size);
-    let mut foods: Vec<Food> = (0..3).map(|_| Food::new(GAME_CONTEXT.grid_size)).collect();
 
     *closure_mut.borrow_mut() = Some(Closure::wrap(Box::new(move |timestamp: f64| {
 
-        if !GAME_CONTEXT.can_run {
+        if !game.borrow().can_run {
+            let timestamp = JsValue::from_f64(performance_now(&window_inner));
+            set_timeout_with_param(window_inner.clone(), &closure_inner, 500, timestamp);
             return;
         }
 
         let mut last_timestamp = last_timestamp.borrow_mut();
-
-        if timestamp - *last_timestamp < options.frame_threshold_ms {
+        let frame_threshold_ms = OPTIONS.as_ref().unwrap().borrow().frame_threshold_ms;
+    
+        if timestamp - *last_timestamp < frame_threshold_ms {
             request_animation_frame(&window_inner, &closure_inner);
             return;
         }
-
-        *last_timestamp = timestamp;
     
-        let mut snake = snake.borrow_mut();
+        *last_timestamp = timestamp;
 
-        snake.traverse();
-
-        if snake.is_self_collision() {
-            snake.reset();
-            on_game_over.call0(&JsValue::null()).unwrap();
-            // let empty_data = Float32Array::view(&vec![]);
-            // context.buffer_data_with_array_buffer_view(WebGlRenderingContext::ARRAY_BUFFER, &empty_data, WebGlRenderingContext::STATIC_DRAW);
-
-            // context.delete_buffer(GAME_CONTEXT.position_buffer.as_ref());
-            // let new_buffer = context.create_buffer();
-            // GAME_CONTEXT.position_buffer = new_buffer.clone();
-            // context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, new_buffer.as_ref());
-        }
-
-        let mut score_updated = false;
-        let mut eaten_foods = Vec::new();
-        
-        for (index, food) in foods.iter_mut().enumerate() {
-            if snake.overlaps(&food) {
-                snake.grow();
-                food.respawn();
-                eaten_foods.push(index);
-                score_updated = true;
-            }
-        }
-
-        for index in eaten_foods.iter().rev() {
-            foods.remove(*index);
-        }
-
-        while foods.len() < 3 {
-            foods.push(Food::new(GAME_CONTEXT.grid_size));
-        }
-
-        if score_updated {
-            on_score.call0(&JsValue::null()).unwrap();
-        }
-
-        // context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-        snake.draw(&context);
-
-        for food in &foods {
-            food.draw(&context);
-        }
+        on_game_loop(game.clone(), renderer.clone());
 
         request_animation_frame(&window_inner, &closure_inner);
 
     }) as Box<dyn FnMut(f64)>));
 
-    request_animation_frame(&window, &closure);   
+    request_animation_frame(&window, &closure);
 }

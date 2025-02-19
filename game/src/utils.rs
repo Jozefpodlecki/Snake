@@ -1,11 +1,11 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::{Document, Event, EventTarget, HtmlCanvasElement, KeyboardEvent, WebGlProgram, WebGl2RenderingContext, WebGlShader, Window};
+use js_sys::{Function, Math};
+use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
+use web_sys::{Document, EventTarget, HtmlCanvasElement, KeyboardEvent, WebGlProgram, WebGl2RenderingContext, WebGlShader, Window};
 
-use crate::{constants::{FS_SOURCE, VS_SOURCE}, models::{Direction, GameContext, Snake}};
+use crate::{constants::{FS_SOURCE, VS_SOURCE}, game::Game, models::Direction};
 
-pub type ShareduEventClosure = Rc<RefCell<Option<Closure<dyn FnMut(Event)>>>>;
 pub type Sharedf64Closure = Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>;
 
 pub fn create_shader(context: &WebGl2RenderingContext, shader_type: u32, source: &str) -> Option<WebGlShader> {
@@ -46,7 +46,7 @@ pub fn create_program(
     Some(program)
 }
 
-pub fn setup_webgl(context: &WebGl2RenderingContext, game_context: &mut GameContext) {
+pub fn setup_webgl(context: &WebGl2RenderingContext) {
 
     let vertex_shader = create_shader(&context, WebGl2RenderingContext::VERTEX_SHADER, VS_SOURCE).unwrap();
     let fragment_shader = create_shader(&context, WebGl2RenderingContext::FRAGMENT_SHADER, FS_SOURCE).unwrap();
@@ -55,7 +55,6 @@ pub fn setup_webgl(context: &WebGl2RenderingContext, game_context: &mut GameCont
     context.use_program(Some(&program));
     
     let position_buffer = context.create_buffer();
-    game_context.position_buffer = position_buffer.clone();
     context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, position_buffer.as_ref());
 
     let position_location = context.get_attrib_location(&program, "a_position") as u32;
@@ -93,21 +92,26 @@ pub fn request_animation_frame(window: &Window, closure: &Sharedf64Closure) {
     // window.cancel_animation_frame(handle)
 }
 
-pub fn setup_key_bindings(document: Document, snake: Rc<RefCell<Snake>>) {
+pub fn setup_key_bindings(document: Document, game: Rc<RefCell<Game<Function>>>) {
 
     let key_direction_map = create_key_direction_map();
 
     let closure = Closure::<dyn FnMut(_)>::new(move |event: KeyboardEvent| {
 
+        if !game.borrow_mut().can_run {
+            return;
+        }
+
         let key = event.key().to_lowercase();
 
         if let Some(direction) = key_direction_map.get(&key) {
-            snake.borrow_mut().change_direction(*direction);
+            game.borrow_mut().change_direction(*direction);
         }
 
     });
 
-    document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref()).unwrap();
+    let listener = closure.as_ref().unchecked_ref();
+    document.add_event_listener_with_callback("keydown", listener).unwrap();
     closure.forget();
 }
 
@@ -136,4 +140,25 @@ pub fn setup_on_resize(
 
     window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref()).unwrap();
     closure.forget();
+}
+
+pub fn performance_now(window: &Window) -> f64 {
+    let timestamp = window.performance().unwrap().now();
+    timestamp
+}
+
+pub fn set_timeout_with_param(window: Window, closure: &Sharedf64Closure, timeout: i32, argument: JsValue) {
+    let borrowed_closure = closure.borrow();
+    let closure_function = borrowed_closure.as_ref().unwrap().as_ref().unchecked_ref();
+    
+    let arguments = js_sys::Array::new_with_length(1);
+    arguments.set(0, argument);
+    window.set_timeout_with_callback_and_timeout_and_arguments(closure_function, timeout, &arguments).unwrap();
+}
+
+pub fn get_random_position_on_grid(grid_size: i32) -> (i32, i32) {
+    let grid_size = grid_size - 1;
+    let x = (1.0 + Math::random() * grid_size as f64) as i32;
+    let y = (1.0 + Math::random() * grid_size as f64) as i32;
+    (x, y)
 }

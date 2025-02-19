@@ -23,7 +23,9 @@
     "tailwindcss": "^4.0.6",
     "vite": "^6.1.0",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.5",
+    "lucide-react": "^0.475.0",
+    "antd": "^5.0.0"
   },
   "dependencies": {
     "snake-game": "file:./snake-game",
