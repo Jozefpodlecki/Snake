@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build --base=/snake"
+    "build": "tsc && vite build --base=/Snake"
   },
   "author": "",
   "license": "ISC",

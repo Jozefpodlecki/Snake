@@ -1,0 +1,66 @@
+
+name: CI - Build & Test
+
+on:
+  push:
+    branches: ["master"]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Cache
+        id: cache-web
+        uses: actions/cache@v4
+        with:
+          path: |
+            web/node_modules
+          key: ${{ runner.os }}-build-${{ hashFiles('**/web/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+   
+      - name: wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'latest'
+        
+      - run: wasm-pack build --target web --out-dir ../web/snake-game
+        working-directory: ./game
+      - run: npm install
+        working-directory: ./web
+      - run: npm run build
+        working-directory: ./web
+
+      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: false
+      - name: Tests
+        continue-on-error: true
+        run: cargo test --verbose
+        working-directory: ./game
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+        
+      - name: code coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+      - name: push to codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./game/lcov.info
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./web/dist"

@@ -90,8 +90,6 @@ impl Snake {
         new_head.0 = (new_head.0 + self.grid_size) % self.grid_size;
         new_head.1 = (new_head.1 + self.grid_size) % self.grid_size;
 
-        let test: std::iter::Rev<std::ops::Range<usize>> = (1..self.body.len()).rev();
-
         for i in (1..self.body.len()).rev() {
             self.body[i] = self.body[i - 1];
         }

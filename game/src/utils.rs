@@ -157,8 +157,21 @@ pub fn set_timeout_with_param(window: Window, closure: &Sharedf64Closure, timeou
 }
 
 pub fn get_random_position_on_grid(grid_size: i32) -> (i32, i32) {
-    let grid_size = grid_size - 1;
-    let x = (1.0 + Math::random() * grid_size as f64) as i32;
-    let y = (1.0 + Math::random() * grid_size as f64) as i32;
-    (x, y)
+    #[cfg(test)]
+    {
+        use rand::Rng;
+        let mut rng = rand::rng();
+        let x = rng.random_range(1..grid_size);
+        let y = rng.random_range(1..grid_size);
+        (x, y)
+    }
+ 
+    #[cfg(not(test))]
+    {
+        let grid_size = grid_size - 1;
+        let x = (1.0 + Math::random() * grid_size as f64) as i32;
+        let y = (1.0 + Math::random() * grid_size as f64) as i32;
+        (x, y)
+    }
+   
 }

@@ -1,5 +1,3 @@
-use js_sys::Math;
-
 const COLORS: &[[f32; 4]] = &[
     [1.0, 0.0, 0.0, 1.0],
     [0.0, 1.0, 0.0, 1.0],
@@ -12,6 +10,17 @@ const COLORS: &[[f32; 4]] = &[
 ];
 
 pub fn get_random_color() -> [f32; 4] {
-    let index = (Math::random() * COLORS.len() as f64) as usize;
-    COLORS[index]
+    #[cfg(test)]
+    {
+        use rand::{rng, seq::IndexedRandom};
+        let mut rng = rng();
+        *COLORS.choose(&mut rng).unwrap()
+    }
+
+    #[cfg(not(test))]
+    {
+        use js_sys::Math;
+        let index = (Math::random() * COLORS.len() as f64) as usize;
+        COLORS[index]
+    }
 }

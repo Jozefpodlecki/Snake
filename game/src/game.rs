@@ -106,3 +106,27 @@ impl<T: InvokeJs> Game<T> {
         unsafe { Float32Array::view(&all_vertices) }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    struct MockInvokeJs;
+    impl InvokeJs for MockInvokeJs {
+        fn invoke(&self) {}
+    }
+
+    #[test]
+    fn test_game_initialization() {
+        let grid_size = 10;
+        let food_count = 3;
+        let mut game = Game::new(grid_size, food_count, MockInvokeJs, MockInvokeJs);
+
+        assert_eq!(game.grid_size, grid_size);
+        assert_eq!(game.foods.len(), food_count as usize);
+        assert_eq!(game.score, 0);
+        assert!(game.can_run);
+    }
+}
