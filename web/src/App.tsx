@@ -1,6 +1,7 @@
 import Panel from "Panel";
 import { useEffect, useState } from "react";
-import init, { run, pause, play, apply_options } from "snake-game";
+import init, { run, pause, play, restart, apply_options } from "snake-game";
+import Start from "Start";
 import { GameOptions } from "types";
 
 const defaultOptions: GameOptions = {
@@ -12,42 +13,49 @@ const defaultOptions: GameOptions = {
     frameThresholdMs: 1000 / 10
 };
 
+type GameState = "loading" | "start-prompt" | "playing" | "settings" | "game-over";
+
 function App() {
     const [score, setScore] = useState(0);
     const [options, setOptions] = useState(defaultOptions);
-    const [isInitialized, setInitialized] = useState(false);
-    const [isOpen, setOpen] = useState(false);
+    const [state, setState] = useState<GameState>("loading");
 
     useEffect(() => {
         onLoad();
 
+        window.addEventListener("keydown", onKeyDown);
+
         return () => {
             stop();
         }
+
     }, []);
 
     useEffect(() => {
 
-        if(!isInitialized) {
-            return;
+        switch(state) {
+            case "playing":
+                play();
+                break;
+            case "settings":
+                pause();
+                break;
         }
 
-        if (isOpen) {
-            pause();
-        }
-        else {
-            play();
-        }
+    }, [state]);
 
-    }, [isInitialized, isOpen]);
+    function onKeyDown(event: KeyboardEvent) {
+        
+        if(event.code === "Space") {
+            setState("playing");
+            restart();
+        }
+    }
 
     async function onLoad() {
         await init();
-        setInitialized(true);
-
-        (window as any).setScore = () => setScore(value => value + 1);
-
         run(options, onScore, onGameOver);
+        setState("start-prompt");
     }
 
     function onGameOver() {
@@ -60,7 +68,7 @@ function App() {
     }
 
     function onToggle() {
-        setOpen(value => !value);
+        setState(state => state === "settings" ? "playing" : "settings");
     }
 
     function onOptionChange(options: GameOptions) {
@@ -70,9 +78,10 @@ function App() {
 
     return <div className="app size-full">
         <canvas id="canvas"></canvas>
-        <div className="absolute top-0 right-0 p-2">Score {score}</div>
+        {state === "start-prompt" ? null : <div className="absolute top-0 right-0 p-2">Score {score}</div>}
+        {state === "start-prompt" ? <Start/> : null}
         <Panel
-            isOpen={isOpen}
+            isOpen={state === "settings"}
             onToggle={onToggle}
             options={options}
             onOptionChange={onOptionChange}/>

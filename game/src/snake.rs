@@ -97,6 +97,10 @@ impl Snake {
         self.body[0] = new_head;
     }
 
+    pub fn get_head_position(&self) -> (i32, i32) {
+        self.body[0]
+    }
+
     fn initialize_body(length: usize) -> Vec<(i32, i32)> {
         let mut body = Vec::new();
         

@@ -4,7 +4,7 @@ use js_sys::{Function, Math};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use web_sys::{Document, EventTarget, HtmlCanvasElement, KeyboardEvent, WebGlProgram, WebGl2RenderingContext, WebGlShader, Window};
 
-use crate::{constants::{FS_SOURCE, VS_SOURCE}, game::Game, models::Direction};
+use crate::{constants::{FS_SOURCE, VS_SOURCE}, game::Game, models::Direction, randomizer::JsRandomizer};
 
 pub type Sharedf64Closure = Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>;
 
@@ -85,14 +85,13 @@ pub fn create_key_direction_map() -> HashMap<String, Direction> {
     }).collect()
 }
 
-pub fn request_animation_frame(window: &Window, closure: &Sharedf64Closure) {
+pub fn request_animation_frame(window: &Window, closure: &Sharedf64Closure) -> i32 {
     let borrowed_closure = closure.borrow();
     let closure_function = borrowed_closure.as_ref().unwrap().as_ref().unchecked_ref();
-    window.request_animation_frame(closure_function).unwrap();
-    // window.cancel_animation_frame(handle)
+    window.request_animation_frame(closure_function).unwrap()
 }
 
-pub fn setup_key_bindings(document: Document, game: Rc<RefCell<Game<Function>>>) {
+pub fn setup_key_bindings(document: Document, game: Rc<RefCell<Game<Function, JsRandomizer>>>) {
 
     let key_direction_map = create_key_direction_map();
 

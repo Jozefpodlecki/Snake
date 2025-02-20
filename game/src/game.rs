@@ -1,7 +1,7 @@
 use js_sys::{Float32Array, Function};
 use wasm_bindgen::JsValue;
 
-use crate::{colors::get_random_color, food::Food, models::Direction, snake::Snake, utils::get_random_position_on_grid};
+use crate::{food::Food, models::Direction, randomizer::Randomizer, snake::Snake, utils::get_random_position_on_grid};
 
 pub trait InvokeJs  {
     fn invoke(&self);
@@ -13,8 +13,9 @@ impl InvokeJs for Function {
     }
 }
 
-pub struct Game<T: InvokeJs> {
+pub struct Game<T: InvokeJs, R: Randomizer> {
     pub can_run: bool,
+    pub is_played_by_ai: bool,
     score: u32,
     snake: Snake,
     foods: Vec<Food>,
@@ -23,19 +24,22 @@ pub struct Game<T: InvokeJs> {
     grid_size: i32,
     cell_size: f32,
     food_count: u32,
+    randomizer: R,
 }
 
-impl<T: InvokeJs> Game<T> {
+impl<T: InvokeJs, R: Randomizer> Game<T, R> {
     pub fn new(grid_size: i32,
         food_count: u32,
         on_score: T,
-        on_game_over: T) -> Self {
+        on_game_over: T,
+        mut randomizer: R) -> Self {
         let cell_size = 2.0 / grid_size as f32;
         let snake_color = [1.0, 1.0, 1.0, 1.0];
         let snake = Snake::new(Direction::Right, grid_size, cell_size, snake_color);
-        let foods = (0..food_count).map(|_| Food::new( get_random_color(), get_random_position_on_grid(grid_size), cell_size)).collect();
+        let foods = (0..food_count).map(|_| Food::new( randomizer.get_random_color(), randomizer.get_random_position_on_grid(grid_size), cell_size)).collect();
 
         Game {
+            is_played_by_ai: true,
             can_run: true,
             score: 0,
             grid_size,
@@ -44,7 +48,24 @@ impl<T: InvokeJs> Game<T> {
             cell_size,
             on_score,
             on_game_over,
-            food_count
+            food_count,
+            randomizer
+        }
+    }
+
+    pub fn update_ai(&mut self) {
+        if let Some(target_food) = self.foods.first() {
+            let snake_head = self.snake.get_head_position();
+            
+            if snake_head.0 < target_food.position.0 {
+                self.snake.change_direction(Direction::Right);
+            } else if snake_head.0 > target_food.position.0 {
+                self.snake.change_direction(Direction::Left);
+            } else if snake_head.1 < target_food.position.1 {
+                self.snake.change_direction(Direction::Up);
+            } else if snake_head.1 > target_food.position.1 {
+                self.snake.change_direction(Direction::Down);
+            }
         }
     }
 
@@ -53,6 +74,11 @@ impl<T: InvokeJs> Game<T> {
     }
 
     pub fn update_and_notify_ui(&mut self) {
+        
+        if self.is_played_by_ai {
+            self.update_ai();
+        }
+
         self.snake.traverse();
 
         for food in &mut self.foods {
@@ -60,8 +86,11 @@ impl<T: InvokeJs> Game<T> {
                 
                 self.snake.grow();
                 food.position = get_random_position_on_grid(self.grid_size);
-                self.score += 1;
-                self.on_score.invoke();
+                
+                if self.is_played_by_ai {
+                    self.score += 1;
+                    self.on_score.invoke();
+                }
 
                 break;
             }
@@ -84,10 +113,11 @@ impl<T: InvokeJs> Game<T> {
         self.reset();
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
+        self.is_played_by_ai = false;
         self.score = 0;
         self.snake.reset();
-        self.foods = (0..self.food_count).map(|_| Food::new(get_random_color(), get_random_position_on_grid(self.grid_size), self.cell_size)).collect();
+        self.foods = (0..self.food_count).map(|_| Food::new(self.randomizer.get_random_color(), self.randomizer.get_random_position_on_grid(self.grid_size), self.cell_size)).collect();
     }
 
     pub fn change_direction(&mut self, direction: Direction) {
@@ -112,6 +142,7 @@ impl<T: InvokeJs> Game<T> {
 mod tests {
     use super::*;
     use wasm_bindgen_test::*;
+    use crate::randomizer::TestRandomizer;
 
     struct MockInvokeJs;
     impl InvokeJs for MockInvokeJs {
@@ -120,9 +151,11 @@ mod tests {
 
     #[test]
     fn test_game_initialization() {
+        let mut randomizer = TestRandomizer::new();
+
         let grid_size = 10;
         let food_count = 3;
-        let mut game = Game::new(grid_size, food_count, MockInvokeJs, MockInvokeJs);
+        let mut game = Game::new(grid_size, food_count, MockInvokeJs, MockInvokeJs, randomizer);
 
         assert_eq!(game.grid_size, grid_size);
         assert_eq!(game.foods.len(), food_count as usize);

@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use game::Game;
 use js_sys::Function;
 use models::GameOptions;
+use randomizer::JsRandomizer;
 use renderer::Renderer;
 use utils::*;
 use wasm_bindgen::prelude::*;
@@ -17,9 +18,10 @@ mod food;
 mod snake;
 mod renderer;
 mod colors;
+mod randomizer;
 
 static mut OPTIONS: Option<Rc<RefCell<GameOptions>>> = None;
-static mut GAME: Option<Rc<RefCell<Game<Function>>>> = None;
+static mut GAME: Option<Rc<RefCell<Game<Function, JsRandomizer>>>> = None;
 
 #[wasm_bindgen]
 pub unsafe fn run(options: JsValue,
@@ -32,12 +34,14 @@ pub unsafe fn run(options: JsValue,
     let canvas = document
         .get_element_by_id(&options.id).unwrap()
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    let randomizer = JsRandomizer;
 
     let game = Rc::new(RefCell::new(Game::new(
         options.grid_size,
         options.food_count,
         on_score,
-        on_game_over)));
+        on_game_over,
+        randomizer)));
 
     GAME = Some(game.clone());
     OPTIONS = Some(Rc::new(RefCell::new(options)));
@@ -63,8 +67,6 @@ pub unsafe fn run(options: JsValue,
         window,
         game.clone(),
         renderer);
-
-    game.borrow_mut().can_run = true;
 
     Ok(())
 }
@@ -103,6 +105,16 @@ pub unsafe fn pause() -> Result<(), JsValue> {
     Ok(())
 }
 
+#[wasm_bindgen]
+pub unsafe fn restart() -> Result<(), JsValue> {
+   
+    if let Some(game) = &GAME {
+        game.borrow_mut().reset();
+    }
+
+    Ok(())
+}
+
 unsafe fn set_run(flag: bool) {
     if let Some(game) = &GAME {
         game.borrow_mut().can_run = flag;
@@ -110,7 +122,7 @@ unsafe fn set_run(flag: bool) {
 }
 
 unsafe fn on_game_loop(
-    game: Rc<RefCell<Game<Function>>>,
+    game: Rc<RefCell<Game<Function, JsRandomizer>>>,
     renderer: Rc<RefCell<Renderer>>) {
     let mut game = game.borrow_mut();
 
@@ -127,7 +139,7 @@ unsafe fn on_game_loop(
 
 unsafe fn start_game_loop(
     window: Window,
-    game: Rc<RefCell<Game<Function>>>,
+    game: Rc<RefCell<Game<Function, JsRandomizer>>>,
     renderer: Rc<RefCell<Renderer>>) {
     let closure: Sharedf64Closure = Rc::new(RefCell::new(None));
 
@@ -135,6 +147,7 @@ unsafe fn start_game_loop(
     let window_inner = window.clone();
     let closure_inner = closure.clone();
     let last_timestamp = Rc::new(RefCell::new(0.0));
+    let mut handle = 0;
 
     *closure_mut.borrow_mut() = Some(Closure::wrap(Box::new(move |timestamp: f64| {
 
@@ -148,7 +161,7 @@ unsafe fn start_game_loop(
         let frame_threshold_ms = OPTIONS.as_ref().unwrap().borrow().frame_threshold_ms;
     
         if timestamp - *last_timestamp < frame_threshold_ms {
-            request_animation_frame(&window_inner, &closure_inner);
+            handle = request_animation_frame(&window_inner, &closure_inner);
             return;
         }
     
@@ -156,9 +169,9 @@ unsafe fn start_game_loop(
 
         on_game_loop(game.clone(), renderer.clone());
 
-        request_animation_frame(&window_inner, &closure_inner);
+        handle = request_animation_frame(&window_inner, &closure_inner);
 
     }) as Box<dyn FnMut(f64)>));
 
-    request_animation_frame(&window, &closure);
+    handle = request_animation_frame(&window, &closure);
 }
