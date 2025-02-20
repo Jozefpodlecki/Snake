@@ -101,6 +101,10 @@ impl Snake {
         self.body[0]
     }
 
+    pub fn will_collide(&self, new_position: (i32, i32)) -> bool {
+        self.body.contains(&new_position)
+    }
+
     fn initialize_body(length: usize) -> Vec<(i32, i32)> {
         let mut body = Vec::new();
         

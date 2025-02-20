@@ -53,18 +53,41 @@ impl<T: InvokeJs, R: Randomizer> Game<T, R> {
         }
     }
 
-    pub fn update_ai(&mut self) {
-        if let Some(target_food) = self.foods.first() {
+    fn get_closest_food(&self) -> Option<&Food> {
+        let snake_head = self.snake.get_head_position();
+        
+        self.foods.iter().min_by_key(|food| {
+            let dx = (snake_head.0 - food.position.0).abs();
+            let dy = (snake_head.1 - food.position.1).abs();
+            dx + dy
+        })
+    }
+
+    fn update_ai(&mut self) {
+        if let Some(target_food) = self.get_closest_food() {
             let snake_head = self.snake.get_head_position();
             
-            if snake_head.0 < target_food.position.0 {
-                self.snake.change_direction(Direction::Right);
-            } else if snake_head.0 > target_food.position.0 {
-                self.snake.change_direction(Direction::Left);
-            } else if snake_head.1 < target_food.position.1 {
-                self.snake.change_direction(Direction::Up);
-            } else if snake_head.1 > target_food.position.1 {
-                self.snake.change_direction(Direction::Down);
+            let mut possible_moves = vec![];
+
+            if !self.snake.will_collide((snake_head.0 + 1, snake_head.1)) {
+                possible_moves.push((Direction::Right, (snake_head.0 + 1, snake_head.1)));
+            }
+            if !self.snake.will_collide((snake_head.0 - 1, snake_head.1)) {
+                possible_moves.push((Direction::Left, (snake_head.0 - 1, snake_head.1)));
+            }
+            if !self.snake.will_collide((snake_head.0, snake_head.1 + 1)) {
+                possible_moves.push((Direction::Up, (snake_head.0, snake_head.1 + 1)));
+            }
+            if !self.snake.will_collide((snake_head.0, snake_head.1 - 1)) {
+                possible_moves.push((Direction::Down, (snake_head.0, snake_head.1 - 1)));
+            }
+
+            if let Some((best_direction, _)) = possible_moves.into_iter().min_by_key(|(_, pos)| {
+                let dx = (pos.0 - target_food.position.0).abs();
+                let dy = (pos.1 - target_food.position.1).abs();
+                dx + dy
+            }) {
+                self.snake.change_direction(best_direction);
             }
         }
     }
