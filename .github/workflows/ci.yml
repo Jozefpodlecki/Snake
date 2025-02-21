@@ -53,6 +53,7 @@ jobs:
         
       - name: code coverage
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        working-directory: ./game
 
       - name: push to codecov
         uses: codecov/codecov-action@v5

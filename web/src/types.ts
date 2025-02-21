@@ -6,3 +6,5 @@ export interface GameOptions {
     fps: number;
     frameThresholdMs: number;
 };
+
+export type GameState = "loading" | "start-prompt" | "playing" | "settings" | "game-over";

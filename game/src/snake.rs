@@ -1,9 +1,9 @@
-use crate::{food::Food, models::Direction};
+use crate::models::Direction;
 
 
 pub struct Snake {
+    body_length: usize,
     body: Vec<(i32, i32)>,
-    direction: Direction,
     grid_size: i32,
     cell_size: f32,
     spacing: f32,
@@ -11,30 +11,26 @@ pub struct Snake {
 }
 
 impl Snake {
-    pub fn new(direction: Direction, grid_size: i32, cell_size: f32, color: [f32; 4]) -> Self {
-        let body = Self::initialize_body(5);
+    pub fn new() -> Self {
+      
         let spacing = 0.01;
 
         Snake {
-            body,
-            direction,
-            grid_size,
-            cell_size,
+            body: vec![],
+            grid_size: 0,
+            cell_size: 0.0,
             spacing,
-            color,
+            color: [0.0, 0.0, 0.0, 0.0],
+            body_length: 0,
         }
     }
 
-    pub fn change_direction(&mut self, direction: Direction) {
-        if !matches!(
-            (self.direction, direction),
-            (Direction::Up, Direction::Down) 
-            | (Direction::Down, Direction::Up)
-            | (Direction::Left, Direction::Right)
-            | (Direction::Right, Direction::Left)
-        ) {
-            self.direction = direction;
-        }
+    pub fn initialize(&mut self, body_length: usize, grid_size: i32, cell_size: f32, color: [f32; 4]) {
+        self.body = Self::initialize_body(body_length);
+        self.grid_size = grid_size;
+        self.cell_size = cell_size;
+        self.color = color;
+        self.body_length = body_length;
     }
 
     pub fn grow(&mut self) {
@@ -62,8 +58,12 @@ impl Snake {
         false
     }
 
-    pub fn overlaps(&self, food: &Food) -> bool {
-        self.body[0] == food.position
+    pub fn occupies(&self, position: (i32, i32)) -> bool {
+        self.body.iter().any(|&segment| segment == position)
+    }
+
+    pub fn head_overlaps(&self, position: (i32, i32)) -> bool {
+        self.body[0] == position
     }
 
     pub fn resize(&mut self, grid_size: i32, cell_size: f32) {
@@ -72,15 +72,14 @@ impl Snake {
     }
 
     pub fn reset(&mut self) {
-        self.body = Self::initialize_body(3);
-        self.direction = Direction::Right;
+        self.body = Self::initialize_body(self.body_length);
     }
 
-    pub fn traverse(&mut self) {
+    pub fn traverse(&mut self, direction: Direction) {
         let (head_x, head_y) = self.body[0];
         let unit = 1;
 
-        let mut new_head = match self.direction {
+        let mut new_head = match direction {
             Direction::Up => (head_x, head_y + unit),
             Direction::Down => (head_x, head_y - unit),
             Direction::Left => (head_x - unit, head_y),

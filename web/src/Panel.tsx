@@ -57,7 +57,7 @@ const Panel: FC<Props> = ({
 
     return <>
         {isOpen ? <div className="z-1 absolute w-full h-full bg-[#000000AA] top-0 left-0"/> : null}
-        <div className={`z-2 absolute bg-gray top-0 ${isOpen ? "bg-[#999999AA] w-[300px] h-full": ""}`}>
+        <div className={`z-2 absolute bg-gray top-0 ${isOpen ? "bg-[#222222AA] w-[300px] h-full": ""}`}>
             {isOpen ?
             <div className="p-2 flex flex-col h-full">
                 <div className={`${isOpen ? "": ""} flex justify-end`}>
@@ -96,7 +96,7 @@ const Panel: FC<Props> = ({
                             <Github/>
                         </a>
                     </div>
-                    <div className="ml-4 text-black">
+                    <div className="ml-4 text-white">
                         Jozef Podlecki 2025
                     </div>
                 </div>

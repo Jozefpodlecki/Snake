@@ -31,19 +31,19 @@ impl Randomizer for JsRandomizer {
 }
 
 #[cfg(test)]
-pub struct TestRandomizer {
+pub struct OsRandomizer {
     rng: rand::rngs::ThreadRng,
 }
 
 #[cfg(test)]
-impl TestRandomizer {
+impl OsRandomizer {
     pub fn new() -> Self {
         Self { rng: rand::rng() }
     }
 }
 
 #[cfg(test)]
-impl Randomizer for TestRandomizer {
+impl Randomizer for OsRandomizer {
     fn get_random_color(&mut self) -> [f32; 4] {
         use rand::seq::IndexedRandom;
 

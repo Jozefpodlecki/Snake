@@ -1,8 +1,8 @@
 import Panel from "Panel";
 import { useEffect, useState } from "react";
-import init, { run, pause, play, restart, apply_options } from "snake-game";
+import init, { setup, stop, play, applyOptions } from "snake-game";
 import Start from "Start";
-import { GameOptions } from "types";
+import { GameOptions, GameState } from "types";
 
 const defaultOptions: GameOptions = {
     id: "canvas",
@@ -12,8 +12,6 @@ const defaultOptions: GameOptions = {
     fps: 10,
     frameThresholdMs: 1000 / 10
 };
-
-type GameState = "loading" | "start-prompt" | "playing" | "settings" | "game-over";
 
 function App() {
     const [score, setScore] = useState(0);
@@ -34,11 +32,14 @@ function App() {
     useEffect(() => {
 
         switch(state) {
+            case "start-prompt":
+                play(true);
+                break;
             case "playing":
-                play();
+                play(false);
                 break;
             case "settings":
-                pause();
+                stop();
                 break;
         }
 
@@ -47,20 +48,22 @@ function App() {
     function onKeyDown(event: KeyboardEvent) {
         
         if(event.code === "Space") {
-            setState("playing");
-            restart();
+            setState(value => {
+                return value === "playing" ? value : "playing"
+            });
         }
     }
 
     async function onLoad() {
         await init();
-        run(options, onScore, onGameOver);
+        setup(options, onScore, onGameOver);
         setState("start-prompt");
     }
 
     function onGameOver() {
+        setState("game-over");
         setScore(0);
-        pause();
+        // stop();
     }
 
     function onScore() {
@@ -73,18 +76,30 @@ function App() {
 
     function onOptionChange(options: GameOptions) {
         setOptions(options);
-        apply_options(options);
+        applyOptions(options);
+    }
+
+    function renderWidgets(state: GameState) {
+        switch(state) {
+            case "start-prompt":
+            case "game-over":
+               return <Start state={state}/>
+            case "playing":
+            case "settings":
+                return <>
+                    <div className="absolute top-0 right-0 p-2">Score {score}</div>
+                    <Panel
+                        isOpen={state === "settings"}
+                        onToggle={onToggle}
+                        options={options}
+                        onOptionChange={onOptionChange}/>
+                </>
+        }
     }
 
     return <div className="app size-full">
         <canvas id="canvas"></canvas>
-        {state === "start-prompt" ? null : <div className="absolute top-0 right-0 p-2">Score {score}</div>}
-        {state === "start-prompt" ? <Start/> : null}
-        <Panel
-            isOpen={state === "settings"}
-            onToggle={onToggle}
-            options={options}
-            onOptionChange={onOptionChange}/>
+        {renderWidgets(state)}
     </div>
 }
 

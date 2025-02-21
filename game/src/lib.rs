@@ -1,13 +1,14 @@
-use std::{cell::RefCell, rc::Rc};
+#![allow(static_mut_refs)]
 
-use game::Game;
+use std::{panic, sync::{Arc, Mutex}};
+use abstractions::{frame_scheduler::WebFrameScheduler, WebGl2Renderer};
+use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use js_sys::Function;
 use models::GameOptions;
 use randomizer::JsRandomizer;
-use renderer::Renderer;
 use utils::*;
 use wasm_bindgen::prelude::*;
-use web_sys::{window, WebGl2RenderingContext, Window};
+use web_sys::{window, WebGl2RenderingContext};
 
 mod utils;
 mod constants;
@@ -16,17 +17,17 @@ mod macros;
 mod game;
 mod food;
 mod snake;
-mod renderer;
-mod colors;
 mod randomizer;
+mod abstractions;
+mod game_orchestrator;
 
-static mut OPTIONS: Option<Rc<RefCell<GameOptions>>> = None;
-static mut GAME: Option<Rc<RefCell<Game<Function, JsRandomizer>>>> = None;
+static mut GAME_ORCHESTRATOR: Option<Arc<Mutex<WasmGameOrchestrator>>> = None;
 
 #[wasm_bindgen]
-pub unsafe fn run(options: JsValue,
+pub unsafe fn setup(options: JsValue,
     on_score: Function,
     on_game_over: Function) -> Result<(), JsValue> {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
     let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
     let window = window().unwrap();
@@ -34,25 +35,33 @@ pub unsafe fn run(options: JsValue,
     let canvas = document
         .get_element_by_id(&options.id).unwrap()
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
-    let randomizer = JsRandomizer;
-
-    let game = Rc::new(RefCell::new(Game::new(
-        options.grid_size,
-        options.food_count,
-        on_score,
-        on_game_over,
-        randomizer)));
-
-    GAME = Some(game.clone());
-    OPTIONS = Some(Rc::new(RefCell::new(options)));
 
     let context = canvas
         .get_context("webgl2").unwrap().unwrap()
         .dyn_into::<WebGl2RenderingContext>()?;
 
-    let renderer = Rc::new(RefCell::new(Renderer::new(context.clone())));
+    let randomizer = JsRandomizer;
+    let frame_scheduler = WebFrameScheduler::new(window.clone());
+    let renderer = WebGl2Renderer::new(context.clone());
+    let mut game_orchestrator=  WasmGameOrchestrator::new(
+        options,
+        canvas,
+        document,
+        window,
+        frame_scheduler,
+        renderer,
+        randomizer,
+        on_score,
+        on_game_over);
+        
+    game_orchestrator.initialize();
+    game_orchestrator.resize();
 
-    on_resize(window.clone(), canvas.clone(), context.clone());
+    let shared_game_orchestrator = Arc::new(Mutex::new(game_orchestrator));
+    GAME_ORCHESTRATOR = Some(shared_game_orchestrator.clone());
+
+    WasmGameOrchestrator::setup_on_resize(&shared_game_orchestrator);
+    WasmGameOrchestrator::setup_key_bindings(&shared_game_orchestrator);
 
     setup_webgl(&context);
 
@@ -60,118 +69,56 @@ pub unsafe fn run(options: JsValue,
     let max_texture_size = context.get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE).unwrap();
     console_log!("Version: {}", version.as_string().unwrap());
     console_log!("Max texture size: {}", max_texture_size.as_f64().unwrap());
-  
-    setup_on_resize(window.clone(), canvas, context.clone());
-    setup_key_bindings(document, game.clone());
-    start_game_loop(
-        window,
-        game.clone(),
-        renderer);
 
     Ok(())
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_name = "applyOptions")]
 pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
     let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
-    if let Some(game_options) = &OPTIONS {
-        let mut game_options = game_options.borrow_mut();
-        game_options.fps = options.fps;
-        game_options.grid_size = options.grid_size;
-        game_options.frame_threshold_ms = options.frame_threshold_ms;
-    }
+    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
 
-    if let Some(game) = &GAME {
-        game.borrow_mut().apply_options_and_reset(options.grid_size, options.food_count);
-    }
+        {
+            let mut game_orchestrator = game_orchestrator.lock().unwrap();
 
-    Ok(())
-}
-
-#[wasm_bindgen]
-pub unsafe fn play() -> Result<(), JsValue> {
-
-    set_run(true);
-
-    Ok(())
-}
-
-#[wasm_bindgen]
-pub unsafe fn pause() -> Result<(), JsValue> {
-
-    set_run(false);
-
-    Ok(())
-}
-
-#[wasm_bindgen]
-pub unsafe fn restart() -> Result<(), JsValue> {
-   
-    if let Some(game) = &GAME {
-        game.borrow_mut().reset();
-    }
-
-    Ok(())
-}
-
-unsafe fn set_run(flag: bool) {
-    if let Some(game) = &GAME {
-        game.borrow_mut().can_run = flag;
-    }
-}
-
-unsafe fn on_game_loop(
-    game: Rc<RefCell<Game<Function, JsRandomizer>>>,
-    renderer: Rc<RefCell<Renderer>>) {
-    let mut game = game.borrow_mut();
-
-    game.update_and_notify_ui();
-
-    if game.is_over() {
-        game.reset_and_notify_ui();
-    }
-
-    let vertices = game.get_vertices();
-    let vertices_length = (vertices.length() / 6) as i32;
-    renderer.borrow_mut().draw_vertices(&vertices, vertices_length);
-}
-
-unsafe fn start_game_loop(
-    window: Window,
-    game: Rc<RefCell<Game<Function, JsRandomizer>>>,
-    renderer: Rc<RefCell<Renderer>>) {
-    let closure: Sharedf64Closure = Rc::new(RefCell::new(None));
-
-    let closure_mut = closure.clone();
-    let window_inner = window.clone();
-    let closure_inner = closure.clone();
-    let last_timestamp = Rc::new(RefCell::new(0.0));
-    let mut handle = 0;
-
-    *closure_mut.borrow_mut() = Some(Closure::wrap(Box::new(move |timestamp: f64| {
-
-        if !game.borrow().can_run {
-            let timestamp = JsValue::from_f64(performance_now(&window_inner));
-            set_timeout_with_param(window_inner.clone(), &closure_inner, 500, timestamp);
-            return;
+            game_orchestrator.apply_options_and_reset(options);
         }
+    }
 
-        let mut last_timestamp = last_timestamp.borrow_mut();
-        let frame_threshold_ms = OPTIONS.as_ref().unwrap().borrow().frame_threshold_ms;
-    
-        if timestamp - *last_timestamp < frame_threshold_ms {
-            handle = request_animation_frame(&window_inner, &closure_inner);
-            return;
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) -> Result<(), JsValue> {
+
+    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
+        if let Ok(mut orchestrator) = game_orchestrator.lock() {
+
+            if orchestrator.is_playing() {
+                orchestrator.stop();
+                orchestrator.reset();
+            }
+
+            drop(orchestrator);
+
+            GameOrchestrator::start_game_loop(game_orchestrator, is_ai_playing);
         }
-    
-        *last_timestamp = timestamp;
+    }
 
-        on_game_loop(game.clone(), renderer.clone());
+    Ok(())
+}
 
-        handle = request_animation_frame(&window_inner, &closure_inner);
+#[wasm_bindgen]
+pub unsafe fn stop() -> Result<(), JsValue> {
 
-    }) as Box<dyn FnMut(f64)>));
+    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
+        console_log!("Some stop");
+        if let Ok(mut orchestrator) = game_orchestrator.lock() {
+            console_log!("ok stop");
+            orchestrator.stop();
+        }
+    }
 
-    handle = request_animation_frame(&window, &closure);
+    Ok(())
 }
