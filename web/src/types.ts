@@ -7,4 +7,11 @@ export interface GameOptions {
     frameThresholdMs: number;
 };
 
-export type GameState = "loading" | "start-prompt" | "playing" | "settings" | "game-over";
+export type GameState = {
+    type: "loading";
+} | {
+    type: "start-prompt";
+} | {
+    type: "playing" | "settings" | "game-over";
+    score: number;
+}

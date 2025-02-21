@@ -14,9 +14,8 @@ const defaultOptions: GameOptions = {
 };
 
 function App() {
-    const [score, setScore] = useState(0);
     const [options, setOptions] = useState(defaultOptions);
-    const [state, setState] = useState<GameState>("loading");
+    const [state, setState] = useState<GameState>({ type: "loading" });
 
     useEffect(() => {
         onLoad();
@@ -31,7 +30,7 @@ function App() {
 
     useEffect(() => {
 
-        switch(state) {
+        switch(state.type) {
             case "start-prompt":
                 play(true);
                 break;
@@ -48,8 +47,16 @@ function App() {
     function onKeyDown(event: KeyboardEvent) {
         
         if(event.code === "Space") {
-            setState(value => {
-                return value === "playing" ? value : "playing"
+            setState(state => {
+                if(state.type === "playing") {
+                    return state;
+                }
+
+                return {
+                    ...state,
+                    type: "playing",
+                    score: 0
+                }
             });
         }
     }
@@ -57,21 +64,50 @@ function App() {
     async function onLoad() {
         await init();
         setup(options, onScore, onGameOver);
-        setState("start-prompt");
+        setState(state => {
+            return {
+                ...state,
+                type: "start-prompt"
+            } as GameState
+        });
     }
 
     function onGameOver() {
-        setState("game-over");
-        setScore(0);
-        // stop();
+        setState(state => {
+            return {
+                ...state,
+                type: "game-over"
+            } as GameState
+        });
     }
 
     function onScore() {
-        setScore(score => score + 1);
+        setState(state => {
+            if(state.type === "playing") {
+                return {
+                    ...state,
+                    score: state.score + 1
+                }
+            }
+
+            return state;
+        });
     }
 
     function onToggle() {
-        setState(state => state === "settings" ? "playing" : "settings");
+        setState(state => {
+            if(state.type === "settings") {
+                return {
+                    ...state,
+                    type: "playing"
+                }
+            }
+
+            return {
+                ...state,
+                type: "settings"
+            } as GameState
+        });
     }
 
     function onOptionChange(options: GameOptions) {
@@ -80,16 +116,16 @@ function App() {
     }
 
     function renderWidgets(state: GameState) {
-        switch(state) {
+        switch(state.type) {
             case "start-prompt":
             case "game-over":
                return <Start state={state}/>
             case "playing":
             case "settings":
                 return <>
-                    <div className="absolute top-0 right-0 p-2">Score {score}</div>
+                    <div className="absolute top-0 right-0 p-2">Score {state.score}</div>
                     <Panel
-                        isOpen={state === "settings"}
+                        isOpen={state.type === "settings"}
                         onToggle={onToggle}
                         options={options}
                         onOptionChange={onOptionChange}/>

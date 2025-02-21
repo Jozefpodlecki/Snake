@@ -155,6 +155,15 @@ where
             self.on_score.invoke();
         }
     
+        let vertices = self.game.get_vertices();
+        let length = vertices.len();
+        let payload = VerticePayload {
+            data: vertices,
+            length: length,
+            vertice_size: length as i32 / 6
+        };
+        self.renderer.draw(&payload);
+
         if self.game.is_over() {
     
             if self.game.is_played_by_ai {
@@ -167,15 +176,6 @@ where
                 return false;
             }
         }
-    
-        let vertices = self.game.get_vertices();
-        let length = vertices.len();
-        let payload = VerticePayload {
-            data: vertices,
-            length: length,
-            vertice_size: length as i32 / 6
-        };
-        self.renderer.draw(&payload);
 
         true
     }

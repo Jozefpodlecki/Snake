@@ -1,3 +1,4 @@
+import { getLeaderboard } from "api";
 import { FC, useEffect, useState } from "react";
 import { GameState } from "types";
 
@@ -6,7 +7,6 @@ interface LeaderboardEntry {
     score: number;
 }
 
-const LEADERBOARD_URL = "https://raw.githubusercontent.com/your-repo/leaderboard.json";
 
 interface Props {
     state: GameState;
@@ -14,11 +14,7 @@ interface Props {
 
 const Start: FC<Props> = ({state}) => {
     const [prompt, setPrompt] = useState("Press space to start");
-    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([
-        { name: "Player1", score: 100 },
-        { name: "Player2", score: 90 },
-        { name: "Player3", score: 80 }
-    ]);
+    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     
     useEffect(() => {
         const updater = () => {
@@ -34,8 +30,7 @@ const Start: FC<Props> = ({state}) => {
     }, []);
 
     useEffect(() => {
-        fetch(LEADERBOARD_URL)
-            .then((res) => res.json())
+        getLeaderboard()
             .then((data) => setLeaderboard(data))
             .catch((err) => console.error("Failed to fetch leaderboard:", err));
     }, []);
@@ -43,8 +38,9 @@ const Start: FC<Props> = ({state}) => {
     return <>
         <div className={`z-3 absolute bg-gray top-0 bg-[#000000AA] size-full flex justify-center items-center pointer-events-none`}>
             <div className="w-[600px]">
-                {state == "game-over" ? <div className="mb-32">
+                {state.type == "game-over" ? <div className="mb-16">
                     <h1 className="text-center font-[sigmar] text-9xl text-[#CCCCCC]">Game Over!</h1>
+                        <p className="mt-4 text-center font-[sigmar] text-3xl text-[#CCCCCC]">Your score: {state.score}</p>
                 </div> : null}
                 <div className="bg-opacity-10 p-4 rounded-2xl bg-opacity-20">
                     <h2 className="font-[sigmar] text-2xl text-white text-center mb-2">Leaderboard</h2>
