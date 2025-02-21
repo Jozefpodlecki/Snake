@@ -4,6 +4,7 @@ use std::{panic, sync::{Arc, Mutex}};
 use abstractions::{frame_scheduler::WebFrameScheduler, WebGl2Renderer};
 use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use js_sys::Function;
+use logger::WasmLogger;
 use models::GameOptions;
 use randomizer::JsRandomizer;
 use utils::*;
@@ -20,6 +21,7 @@ mod snake;
 mod randomizer;
 mod abstractions;
 mod game_orchestrator;
+mod logger;
 
 static mut GAME_ORCHESTRATOR: Option<Arc<Mutex<WasmGameOrchestrator>>> = None;
 
@@ -43,8 +45,10 @@ pub unsafe fn setup(options: JsValue,
     let randomizer = JsRandomizer;
     let frame_scheduler = WebFrameScheduler::new(window.clone());
     let renderer = WebGl2Renderer::new(context.clone());
+    let logger = WasmLogger::new();
     let mut game_orchestrator=  WasmGameOrchestrator::new(
         options,
+        logger,
         canvas,
         document,
         window,
@@ -91,11 +95,18 @@ pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
 
 #[wasm_bindgen]
 pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) -> Result<(), JsValue> {
+    console_log!("wasm play");
 
     if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
         if let Ok(mut orchestrator) = game_orchestrator.lock() {
 
+            if orchestrator.is_game_over() {
+                console_log!("orchestrator.is_game_over()");
+                orchestrator.reset();
+            }
+
             if orchestrator.is_playing() {
+                console_log!("orchestrator.is_playing");
                 orchestrator.stop();
                 orchestrator.reset();
             }
@@ -104,7 +115,15 @@ pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) 
 
             GameOrchestrator::start_game_loop(game_orchestrator, is_ai_playing);
         }
+        else {
+            console_log!("play could not lock")
+        }
+
+        if game_orchestrator.is_poisoned() {
+            console_log!("play is_poisoned")
+        }
     }
+
 
     Ok(())
 }
@@ -113,10 +132,12 @@ pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) 
 pub unsafe fn stop() -> Result<(), JsValue> {
 
     if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
-        console_log!("Some stop");
         if let Ok(mut orchestrator) = game_orchestrator.lock() {
-            console_log!("ok stop");
             orchestrator.stop();
+        }
+
+        if game_orchestrator.is_poisoned() {
+            console_log!("stop is_poisoned")
         }
     }
 

@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 use js_sys::Function;
 use web_sys::{Document, HtmlCanvasElement, Window};
 
-use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, console_log, game::{Game, InvokeJs}, models::{GameOptions, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
+use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, console_log, game::{Game, InvokeJs}, logger::{Logger, WasmLogger}, models::{GameOptions, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
 
-pub type WasmGameOrchestrator = GameOrchestrator<HtmlCanvasElement, Document, Window, WasmClosureWrapper, Function, JsRandomizer, WebGl2Renderer, WebFrameScheduler>;
+pub type WasmGameOrchestrator = GameOrchestrator<WasmLogger, HtmlCanvasElement, Document, Window, WasmClosureWrapper, Function, JsRandomizer, WebGl2Renderer, WebFrameScheduler>;
 
-pub struct GameOrchestrator <C, D, W, CW, T, R, RE, FS>
+pub struct GameOrchestrator <L, C, D, W, CW, T, R, RE, FS>
 where
+    L: Logger + 'static,
     C: CanvasProvider + 'static,
     D: DocumentProvider + 'static,
     W: WindowProvider + 'static,
@@ -20,6 +21,7 @@ where
 {
     options: GameOptions,
     state: GameState,
+    logger: L,
     canvas_provider: C,
     document_provider: D,
     window_provider: W,
@@ -33,8 +35,9 @@ where
     callback_handle: ClosureHandle
 }
 
-impl<C, D, W, CW, T, R, RE, FS> GameOrchestrator <C, D, W, CW, T, R, RE, FS>
+impl<L, C, D, W, CW, T, R, RE, FS> GameOrchestrator <L, C, D, W, CW, T, R, RE, FS>
 where
+    L: Logger + 'static,
     C: CanvasProvider + 'static,
     D: DocumentProvider,
     W: WindowProvider + 'static,
@@ -46,6 +49,7 @@ where
  {
     pub fn new(
         options: GameOptions,
+        logger: L,
         canvas_provider: C,
         document_provider: D,
         window_provider: W,
@@ -58,6 +62,7 @@ where
 
         GameOrchestrator {
             options,
+            logger,
             state: GameState::Idle,
             game,
             canvas_provider,
@@ -85,6 +90,10 @@ where
         self.renderer.set_viewport(width as i32, height as i32);
     }
 
+    pub fn is_game_over(&self) -> bool {
+        self.state == GameState::GameOver
+    }
+
     pub fn is_playing(&self) -> bool {
         self.state == GameState::Playing || self.state == GameState::AiPlaying
     }
@@ -105,7 +114,7 @@ where
             let game_orchestrator = game_orchestrator.clone();
 
             Box::new(move |timestamp: f64| {
-
+                console_log!("start_game_loop");
                 if let Ok(mut orchestrator) = game_orchestrator.lock() {
 
                     if orchestrator.state == GameState::GameOver
@@ -124,11 +133,19 @@ where
                     orchestrator.last_timestamp = timestamp;
     
                     if !orchestrator.on_game_loop() {
+                        console_log!("false orchestrator.on_game_loop(");
                         return;
                     }
                     
                     let callback = orchestrator.callback.as_ref().unwrap();
                     orchestrator.frame_scheduler.request_frame(callback);
+                }
+                else {
+                    console_log!("on_frame could not lock")
+                }
+
+                if game_orchestrator.is_poisoned() {
+                    console_log!("on_frame is_poisoned")
                 }
             })
         };
@@ -145,6 +162,13 @@ where
             else {
                 orchestrator.state = GameState::Playing;
             }
+        }
+        else {
+            console_log!("start_game_loop could not lock")
+        }
+
+        if game_orchestrator.is_poisoned() {
+            console_log!("start_game_loop is_poisoned")
         }
 
     }
