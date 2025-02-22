@@ -1,5 +1,6 @@
 export interface GameOptions {
     id: string;
+    snakeColor: string;
     difficulty: "easy" | "hard",
     gridSize: number;
     foodCount: number;

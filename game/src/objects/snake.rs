@@ -1,10 +1,7 @@
-use crate::models::Direction;
-
 
 pub struct Snake {
     body_length: usize,
     body: Vec<(i32, i32)>,
-    grid_size: i32,
     cell_size: f32,
     spacing: f32,
     color: [f32; 4],
@@ -17,7 +14,6 @@ impl Snake {
 
         Snake {
             body: vec![],
-            grid_size: 0,
             cell_size: 0.0,
             spacing,
             color: [0.0, 0.0, 0.0, 0.0],
@@ -25,11 +21,9 @@ impl Snake {
         }
     }
 
-    pub fn initialize(&mut self, body_length: usize, grid_size: i32, cell_size: f32, color: [f32; 4]) {
+    pub fn initialize(&mut self, body_length: usize, cell_size: f32) {
         self.body = Self::initialize_body(body_length);
-        self.grid_size = grid_size;
         self.cell_size = cell_size;
-        self.color = color;
         self.body_length = body_length;
     }
 
@@ -66,8 +60,11 @@ impl Snake {
         self.body[0] == position
     }
 
-    pub fn resize(&mut self, grid_size: i32, cell_size: f32) {
-        self.grid_size = grid_size;
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.color = color;
+    }
+
+    pub fn resize(&mut self, cell_size: f32) {
         self.cell_size = cell_size;
     }
 
@@ -75,25 +72,12 @@ impl Snake {
         self.body = Self::initialize_body(self.body_length);
     }
 
-    pub fn traverse(&mut self, direction: Direction) {
-        let (head_x, head_y) = self.body[0];
-        let unit = 1;
-
-        let mut new_head = match direction {
-            Direction::Up => (head_x, head_y + unit),
-            Direction::Down => (head_x, head_y - unit),
-            Direction::Left => (head_x - unit, head_y),
-            Direction::Right => (head_x + unit, head_y),
-        };
-
-        new_head.0 = (new_head.0 + self.grid_size) % self.grid_size;
-        new_head.1 = (new_head.1 + self.grid_size) % self.grid_size;
-
+    pub fn move_to(&mut self, new_head_position: (i32, i32)) {
         for i in (1..self.body.len()).rev() {
             self.body[i] = self.body[i - 1];
         }
 
-        self.body[0] = new_head;
+        self.body[0] = new_head_position;
     }
 
     pub fn get_head_position(&self) -> (i32, i32) {

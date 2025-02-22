@@ -1,9 +1,21 @@
 
 import { FC } from "react";
 import { Ellipsis, ChevronLeft } from 'lucide-react';
-import { Select, Slider } from 'antd';
+import { ColorPicker, Select, Slider } from 'antd';
 import { Github } from "Icons";
 import { GameOptions } from "types";
+import { AggregationColor } from "antd/es/color-picker/color";
+
+const difficulties = [
+    {
+        value: "easy",
+        label: "Easy"
+    },
+    {
+        value: "hard",
+        label: "Hard"
+    }
+];
 
 const fpsOptions = [
     {
@@ -40,6 +52,20 @@ const Panel: FC<Props> = ({
         })
     }
 
+    const onSnakeColorChange = (value: AggregationColor, css: string) => {
+        onOptionChange({
+            ...options,
+            snakeColor: value.toHex()
+        })
+    }
+
+    const onDifficultyChange = (difficulty: string) => {
+        onOptionChange({
+            ...options,
+            difficulty: difficulty as "easy" | "hard"
+        })
+    }
+
     const onFpsOptionChange = (fps: number) => {
         onOptionChange({
             ...options,
@@ -48,7 +74,7 @@ const Panel: FC<Props> = ({
         })
     }
 
-    const onChange = (foodCount: number) => {
+    const onFoodCountChange = (foodCount: number) => {
         onOptionChange({
             ...options,
             foodCount
@@ -68,6 +94,15 @@ const Panel: FC<Props> = ({
                 <div className="grow">
                     <h1 className="text">Settings</h1>
                     <div>
+                        <h4 className="my-2">Snake color</h4>
+                        <ColorPicker value={options.snakeColor}
+                            onChange={onSnakeColorChange} />
+                        <h4 className="my-2">Difficulty</h4>
+                        <Select
+                            defaultValue={options.difficulty}
+                            onChange={onDifficultyChange}
+                            options={difficulties}
+                        />
                         <h4 className="my-2">Fps</h4>
                         <Select
                             defaultValue={options.fps}
@@ -86,7 +121,7 @@ const Panel: FC<Props> = ({
                             min={1}
                             max={20}
                             value={options.foodCount}
-                            onChange={onChange}
+                            onChange={onFoodCountChange}
                             />
                         </div>
                 </div>

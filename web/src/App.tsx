@@ -6,7 +6,8 @@ import { GameOptions, GameState } from "types";
 
 const defaultOptions: GameOptions = {
     id: "canvas",
-    difficulty: "easy",
+    snakeColor: "#FFFFFF",
+    difficulty: "hard",
     gridSize: 30,
     foodCount: 5,
     fps: 10,

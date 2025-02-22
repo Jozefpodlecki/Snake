@@ -9,10 +9,11 @@ pub enum GameState {
     GameOver = 4,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GameOptions {
     pub id: String,
+    pub snake_color: String,
     pub difficulty: Difficulty,
     pub grid_size: i32,
     pub food_count: u32,
@@ -26,7 +27,7 @@ pub struct VerticePayload {
     pub vertice_size: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum Difficulty {
     Easy,

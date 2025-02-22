@@ -1,57 +1,58 @@
-use js_sys::Function;
-use wasm_bindgen::JsValue;
+use log::debug;
 
-use crate::{food::Food, models::Direction, randomizer::Randomizer, snake::Snake};
-
-pub trait InvokeJs  {
-    fn invoke(&self);
-}
-
-impl InvokeJs for Function {
-    fn invoke(&self) {
-        self.call0(&JsValue::null()).unwrap();
-    }
-}
+use csscolorparser::Color;
+use crate::{models::{Difficulty, Direction, GameOptions}, objects::{obstacle, Food, Obstacle, Snake}, randomizer::Randomizer};
 
 pub struct Game<R: Randomizer> {
     pub is_played_by_ai: bool,
+    options: GameOptions,
     direction: Direction,
     score: u32,
     snake: Snake,
     foods: Vec<Food>,
-    grid_size: i32,
+    obstacles: Vec<Obstacle>,
     cell_size: f32,
-    food_count: u32,
     randomizer: R,
 }
 
 impl<R: Randomizer> Game< R> {
-    pub fn new(grid_size: i32, food_count: u32, randomizer: R) -> Self {
-        let cell_size = 2.0 / grid_size as f32;
+    pub fn new(
+        options: GameOptions,
+        randomizer: R) -> Self {
+        let cell_size = 2.0 / options.grid_size as f32;
         let snake = Snake::new();
 
         Game {
+            options,
             direction: Direction::Right,
             is_played_by_ai: true,
             score: 0,
-            grid_size,
             snake,
             foods: vec![],
+            obstacles: vec![],
             cell_size,
-            food_count,
             randomizer
         }
     }
 
     pub fn initialize(&mut self) {
         let body_length = 5;
-        let snake_color = [1.0, 1.0, 1.0, 1.0];
         
-        let foods = (0..self.food_count).map(|_| Food::new(
+        let foods = (0..self.options.food_count).map(|_| Food::new(
             self.randomizer.get_random_color(),
-            self.randomizer.get_random_position_on_grid(self.grid_size), self.cell_size)).collect();
+            self.randomizer.get_random_position_on_grid(self.options.grid_size), self.cell_size)).collect();
         self.foods = foods;
-        self.snake.initialize(body_length, self.grid_size, self.cell_size, snake_color);
+        self.snake.initialize(body_length, self.cell_size);
+        
+        let color = self.options.snake_color.parse::<Color>().unwrap();
+        self.snake.set_color(color.to_array());
+
+        if self.options.difficulty == Difficulty::Hard {
+            let obstacles = (0..2).map(|_| Obstacle::new(
+                [0.7, 0.7, 0.7, 1.0],
+                self.randomizer.get_random_position_on_grid(self.options.grid_size), self.cell_size)).collect();
+            self.obstacles = obstacles;
+        }
     }
 
     fn get_closest_food(&self) -> Option<&Food> {
@@ -115,14 +116,16 @@ impl<R: Randomizer> Game< R> {
     
     // Function to count open cells from a given position (basic flood-fill)
     fn count_reachable_cells(&self, start: (i32, i32)) -> usize {
-        let mut visited = vec![vec![false; self.grid_size as usize]; self.grid_size as usize];
+        let grid_size = self.options.grid_size;
+
+        let mut visited = vec![vec![false; grid_size as usize]; grid_size as usize];
         let mut queue = vec![start];
         let mut count = 0;
     
         while let Some((x, y)) = queue.pop() {
             
             let is_out_of_bounds_or_visited = 
-                x < 0 || y < 0 || x >= self.grid_size || y >= self.grid_size || visited[x as usize][y as usize];
+                x < 0 || y < 0 || x >= grid_size || y >= grid_size || visited[x as usize][y as usize];
 
             if is_out_of_bounds_or_visited {
                 continue;
@@ -148,14 +151,55 @@ impl<R: Randomizer> Game< R> {
         self.snake.is_self_collision()
     }
 
+    // pub fn traverse(&mut self, direction: Direction) {
+    //     let (head_x, head_y) = self.body[0];
+    //     let unit = 1;
+
+    //     let mut new_head = match direction {
+    //         Direction::Up => (head_x, head_y + unit),
+    //         Direction::Down => (head_x, head_y - unit),
+    //         Direction::Left => (head_x - unit, head_y),
+    //         Direction::Right => (head_x + unit, head_y),
+    //     };
+
+    //     new_head.0 = (new_head.0 + self.grid_size) % self.grid_size;
+    //     new_head.1 = (new_head.1 + self.grid_size) % self.grid_size;
+
+    //     for i in (1..self.body.len()).rev() {
+    //         self.body[i] = self.body[i - 1];
+    //     }
+
+    //     self.body[0] = new_head;
+    // }
+
+    fn update_snake_position(&mut self, direction: Direction) {
+        let grid_size = self.options.grid_size;
+
+        let (head_x, head_y) = self.snake.get_head_position();
+        let unit = 1;
+    
+        let mut new_head = match direction {
+            Direction::Up => (head_x, head_y + unit),
+            Direction::Down => (head_x, head_y - unit),
+            Direction::Left => (head_x - unit, head_y),
+            Direction::Right => (head_x + unit, head_y),
+        };
+
+        new_head.0 = (new_head.0 + grid_size) % grid_size;
+        new_head.1 = (new_head.1 + grid_size) % grid_size;
+    
+        self.snake.move_to(new_head);
+    }
+
     pub fn update(&mut self) -> bool {
         let mut has_grown = false;
 
         if self.is_played_by_ai {
+            debug!("update_ai");
             self.update_ai();
         }
 
-        self.snake.traverse(self.direction);
+        self.update_snake_position(self.direction);
 
         let food_positions: Vec<_> = self.foods.iter().map(|food| food.position).collect();
 
@@ -163,7 +207,7 @@ impl<R: Randomizer> Game< R> {
             if self.snake.head_overlaps(food.position) {
                 
                 self.snake.grow();
-                food.position = Self::get_free_position(&mut self.randomizer, &self.snake, &food_positions, self.grid_size);
+                food.position = Self::get_free_position(&mut self.randomizer, &self.snake, &food_positions, self.options.grid_size);
 
                 if self.is_played_by_ai {
                     self.score += 1;
@@ -177,12 +221,14 @@ impl<R: Randomizer> Game< R> {
         has_grown
     }
 
-    pub fn apply_options_and_reset(&mut self, grid_size: i32, food_count: u32) {
-        self.grid_size = grid_size;
-        self.food_count = food_count;
-        self.cell_size = 2.0 / grid_size as f32;
+    pub fn apply_options_and_reset(&mut self, options: GameOptions) {
+        debug!("apply_options_and_reset");
+        self.options = options;
+        self.cell_size = 2.0 / self.options.grid_size as f32;
 
-        self.snake.resize(grid_size, self.cell_size);
+        let color = self.options.snake_color.parse::<Color>().unwrap();
+        self.snake.set_color(color.to_array());
+        self.snake.resize(self.cell_size);
 
         self.reset();
     }
@@ -191,9 +237,9 @@ impl<R: Randomizer> Game< R> {
         self.is_played_by_ai = false;
         self.score = 0;
         self.snake.reset();
-        self.foods = (0..self.food_count).map(|_| Food::new(
+        self.foods = (0..self.options.food_count).map(|_| Food::new(
             self.randomizer.get_random_color(),
-            Self::get_free_position(&mut self.randomizer, &self.snake, &vec![], self.grid_size),
+            Self::get_free_position(&mut self.randomizer, &self.snake, &vec![], self.options.grid_size),
             self.cell_size)).collect();
     }
 
@@ -218,6 +264,11 @@ impl<R: Randomizer> Game< R> {
             all_vertices.extend_from_slice(&food.as_vertices());
         }
 
+        for obstacle in &self.obstacles {
+            all_vertices.extend_from_slice(&obstacle.as_vertices());
+        }
+        
+
         all_vertices
     }
 
@@ -228,7 +279,7 @@ impl<R: Randomizer> Game< R> {
 mod tests {
     use super::*;
     use wasm_bindgen_test::*;
-    use crate::randomizer::OsRandomizer;
+    use crate::{abstractions::InvokeJs, randomizer::OsRandomizer};
 
     struct MockInvokeJs;
     impl InvokeJs for MockInvokeJs {

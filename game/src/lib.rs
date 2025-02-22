@@ -4,10 +4,11 @@ use std::{panic, sync::{Arc, Mutex}};
 use abstractions::{frame_scheduler::WebFrameScheduler, WebGl2Renderer};
 use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use js_sys::Function;
-use logger::WasmLogger;
+use log::{debug, info};
 use models::GameOptions;
 use randomizer::JsRandomizer;
 use utils::*;
+use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;
 use web_sys::{window, WebGl2RenderingContext};
 
@@ -16,20 +17,30 @@ mod constants;
 mod models;
 mod macros;
 mod game;
-mod food;
-mod snake;
 mod randomizer;
 mod abstractions;
 mod game_orchestrator;
-mod logger;
+mod objects;
 
 static mut GAME_ORCHESTRATOR: Option<Arc<Mutex<WasmGameOrchestrator>>> = None;
+
+cfg_if! {
+    if #[cfg(feature = "console_log")] {
+        fn init_log() {
+            use log::Level;
+            console_log::init_with_level(Level::Debug).unwrap();
+        }
+    } else {
+        fn init_log() {}
+    }
+}
 
 #[wasm_bindgen]
 pub unsafe fn setup(options: JsValue,
     on_score: Function,
     on_game_over: Function) -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
+    init_log();
     let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
     let window = window().unwrap();
@@ -45,10 +56,8 @@ pub unsafe fn setup(options: JsValue,
     let randomizer = JsRandomizer;
     let frame_scheduler = WebFrameScheduler::new(window.clone());
     let renderer = WebGl2Renderer::new(context.clone());
-    let logger = WasmLogger::new();
     let mut game_orchestrator=  WasmGameOrchestrator::new(
         options,
-        logger,
         canvas,
         document,
         window,
@@ -71,8 +80,8 @@ pub unsafe fn setup(options: JsValue,
 
     let version = context.get_parameter(WebGl2RenderingContext::VERSION).unwrap();
     let max_texture_size = context.get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE).unwrap();
-    console_log!("Version: {}", version.as_string().unwrap());
-    console_log!("Max texture size: {}", max_texture_size.as_f64().unwrap());
+    info!("Version: {}", version.as_string().unwrap());
+    info!("Max texture size: {}", max_texture_size.as_f64().unwrap());
 
     Ok(())
 }
@@ -95,18 +104,18 @@ pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
 
 #[wasm_bindgen]
 pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) -> Result<(), JsValue> {
-    console_log!("wasm play");
+    debug!("play");
 
     if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
         if let Ok(mut orchestrator) = game_orchestrator.lock() {
 
             if orchestrator.is_game_over() {
-                console_log!("orchestrator.is_game_over()");
+                debug!("orchestrator.is_game_over()");
                 orchestrator.reset();
             }
 
             if orchestrator.is_playing() {
-                console_log!("orchestrator.is_playing");
+                debug!("orchestrator.is_playing");
                 orchestrator.stop();
                 orchestrator.reset();
             }
@@ -116,11 +125,11 @@ pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) 
             GameOrchestrator::start_game_loop(game_orchestrator, is_ai_playing);
         }
         else {
-            console_log!("play could not lock")
+            debug!("play could not lock")
         }
 
         if game_orchestrator.is_poisoned() {
-            console_log!("play is_poisoned")
+            debug!("play is_poisoned")
         }
     }
 
@@ -137,7 +146,7 @@ pub unsafe fn stop() -> Result<(), JsValue> {
         }
 
         if game_orchestrator.is_poisoned() {
-            console_log!("stop is_poisoned")
+            debug!("stop is_poisoned")
         }
     }
 

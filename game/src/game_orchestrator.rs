@@ -1,15 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use js_sys::Function;
+use log::debug;
 use web_sys::{Document, HtmlCanvasElement, Window};
 
-use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, console_log, game::{Game, InvokeJs}, logger::{Logger, WasmLogger}, models::{GameOptions, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
+use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, console_log, game::Game, models::{GameOptions, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
 
-pub type WasmGameOrchestrator = GameOrchestrator<WasmLogger, HtmlCanvasElement, Document, Window, WasmClosureWrapper, Function, JsRandomizer, WebGl2Renderer, WebFrameScheduler>;
+pub type WasmGameOrchestrator = GameOrchestrator<HtmlCanvasElement, Document, Window, WasmClosureWrapper, Function, JsRandomizer, WebGl2Renderer, WebFrameScheduler>;
 
-pub struct GameOrchestrator <L, C, D, W, CW, T, R, RE, FS>
+pub struct GameOrchestrator <C, D, W, CW, T, R, RE, FS>
 where
-    L: Logger + 'static,
     C: CanvasProvider + 'static,
     D: DocumentProvider + 'static,
     W: WindowProvider + 'static,
@@ -21,7 +21,6 @@ where
 {
     options: GameOptions,
     state: GameState,
-    logger: L,
     canvas_provider: C,
     document_provider: D,
     window_provider: W,
@@ -30,14 +29,13 @@ where
     frame_scheduler: FS,
     on_score: T,
     on_game_over: T,
-    last_timestamp: f64,
     callback: Option<CW>,
-    callback_handle: ClosureHandle
+    callback_handle: ClosureHandle,
+    last_timestamp: f64,
 }
 
-impl<L, C, D, W, CW, T, R, RE, FS> GameOrchestrator <L, C, D, W, CW, T, R, RE, FS>
+impl<C, D, W, CW, T, R, RE, FS> GameOrchestrator<C, D, W, CW, T, R, RE, FS>
 where
-    L: Logger + 'static,
     C: CanvasProvider + 'static,
     D: DocumentProvider,
     W: WindowProvider + 'static,
@@ -45,11 +43,9 @@ where
     T: InvokeJs + 'static,
     R: Randomizer + 'static,
     RE: Renderer + 'static,
-    FS: FrameScheduler<CW> + 'static
- {
+    FS: FrameScheduler<CW> + 'static {
     pub fn new(
         options: GameOptions,
-        logger: L,
         canvas_provider: C,
         document_provider: D,
         window_provider: W,
@@ -58,11 +54,10 @@ where
         randomizer: R,
         on_score: T,
         on_game_over: T) -> Self {
-        let game = Game::new(options.grid_size, options.food_count, randomizer);
+        let game = Game::new(options.clone(), randomizer);
 
         GameOrchestrator {
             options,
-            logger,
             state: GameState::Idle,
             game,
             canvas_provider,
@@ -99,12 +94,13 @@ where
     }
 
     pub fn stop(&mut self) {
-        console_log!("stop Paused");
+        debug!("stop");
         self.state = GameState::Paused;
         self.frame_scheduler.cancel(self.callback_handle);
     }
 
     pub fn reset(&mut self) {
+        debug!("reset");
         self.game.reset();
     }
 
@@ -114,7 +110,8 @@ where
             let game_orchestrator = game_orchestrator.clone();
 
             Box::new(move |timestamp: f64| {
-                console_log!("start_game_loop");
+                debug!("request_frame");
+
                 if let Ok(mut orchestrator) = game_orchestrator.lock() {
 
                     if orchestrator.state == GameState::GameOver
@@ -133,7 +130,7 @@ where
                     orchestrator.last_timestamp = timestamp;
     
                     if !orchestrator.on_game_loop() {
-                        console_log!("false orchestrator.on_game_loop(");
+                        debug!("on_game_loop false");
                         return;
                     }
                     
@@ -141,11 +138,11 @@ where
                     orchestrator.frame_scheduler.request_frame(callback);
                 }
                 else {
-                    console_log!("on_frame could not lock")
+                    debug!("on_frame could not lock")
                 }
 
                 if game_orchestrator.is_poisoned() {
-                    console_log!("on_frame is_poisoned")
+                    debug!("on_frame is_poisoned")
                 }
             })
         };
@@ -164,11 +161,11 @@ where
             }
         }
         else {
-            console_log!("start_game_loop could not lock")
+            debug!("start_game_loop could not lock")
         }
 
         if game_orchestrator.is_poisoned() {
-            console_log!("start_game_loop is_poisoned")
+            debug!("start_game_loop is_poisoned")
         }
 
     }
@@ -206,7 +203,8 @@ where
 
     pub fn apply_options_and_reset(&mut self, options: GameOptions) {
         self.options = options;
-        self.game.apply_options_and_reset(self.options.grid_size, self.options.food_count);
+        self.game.apply_options_and_reset(self.options.clone());
+        // self.game.set_color
     }
 
     pub fn setup_on_resize(game_orchestrator: &Arc<Mutex<Self>>) {
@@ -247,5 +245,16 @@ where
             let game_orchestrator = game_orchestrator.lock().unwrap();
             game_orchestrator.document_provider.on_key_down(handler);
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_game_orchestrator() {
+      
     }
 }

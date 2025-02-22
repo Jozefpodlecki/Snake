@@ -1,10 +1,11 @@
 pub mod frame_scheduler;
 pub mod renderer;
 
+use js_sys::Function;
 pub use renderer::{Renderer, WebGl2Renderer};
 pub use frame_scheduler::{FrameScheduler, ClosureWrapper, ClosureHandle};
 
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use web_sys::{Document, HtmlCanvasElement, KeyboardEvent, Window};
 
 pub trait DocumentProvider {
@@ -51,5 +52,15 @@ impl CanvasProvider for HtmlCanvasElement {
     fn set_size(&self, width: u32, height: u32) {
         self.set_width(width);
         self.set_height(height);
+    }
+}
+
+pub trait InvokeJs  {
+    fn invoke(&self);
+}
+
+impl InvokeJs for Function {
+    fn invoke(&self) {
+        self.call0(&JsValue::null()).unwrap();
     }
 }
