@@ -20,12 +20,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Web Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: ./web/dist
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -30,6 +30,7 @@ default = ["console_log"]
 [dev-dependencies]
 wasm-bindgen-test = "0.3.50"
 rand = "0.9.0"
+mockall = "0.13.1"
 
 [dependencies.web-sys]
 version = "0.3.4"

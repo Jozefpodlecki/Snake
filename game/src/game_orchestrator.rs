@@ -4,11 +4,20 @@ use js_sys::Function;
 use log::debug;
 use web_sys::{Document, HtmlCanvasElement, Window};
 
-use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, console_log, game::Game, models::{GameOptions, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
+use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, game::Game, models::{GameOptions, GameResult, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
 
-pub type WasmGameOrchestrator = GameOrchestrator<HtmlCanvasElement, Document, Window, WasmClosureWrapper, Function, JsRandomizer, WebGl2Renderer, WebFrameScheduler>;
+pub type WasmGameOrchestrator = GameOrchestrator<
+    HtmlCanvasElement,
+    Document,
+    Window,
+    WasmClosureWrapper,
+    Function,
+    JsRandomizer,
+    WebGl2Renderer,
+    WebFrameScheduler,
+    GBFSAiController>;
 
-pub struct GameOrchestrator <C, D, W, CW, T, R, RE, FS>
+pub struct GameOrchestrator <C, D, W, CW, T, R, RE, FS, A>
 where
     C: CanvasProvider + 'static,
     D: DocumentProvider + 'static,
@@ -17,7 +26,8 @@ where
     T: InvokeJs + 'static,
     R: Randomizer + 'static,
     RE: Renderer + 'static,
-    FS: FrameScheduler<CW> + 'static
+    FS: FrameScheduler<CW> + 'static,
+    A: AiController + 'static
 {
     options: GameOptions,
     state: GameState,
@@ -32,9 +42,10 @@ where
     callback: Option<CW>,
     callback_handle: ClosureHandle,
     last_timestamp: f64,
+    ai_controller: A
 }
 
-impl<C, D, W, CW, T, R, RE, FS> GameOrchestrator<C, D, W, CW, T, R, RE, FS>
+impl<C, D, W, CW, T, R, RE, FS, A> GameOrchestrator<C, D, W, CW, T, R, RE, FS, A>
 where
     C: CanvasProvider + 'static,
     D: DocumentProvider,
@@ -43,7 +54,8 @@ where
     T: InvokeJs + 'static,
     R: Randomizer + 'static,
     RE: Renderer + 'static,
-    FS: FrameScheduler<CW> + 'static {
+    FS: FrameScheduler<CW> + 'static,
+    A: AiController + 'static {
     pub fn new(
         options: GameOptions,
         canvas_provider: C,
@@ -52,6 +64,7 @@ where
         frame_scheduler: FS,
         renderer: RE,
         randomizer: R,
+        ai_controller: A,
         on_score: T,
         on_game_over: T) -> Self {
         let game = Game::new(options.clone(), randomizer);
@@ -69,7 +82,8 @@ where
             on_game_over,
             last_timestamp: 0.0,
             callback: None,
-            callback_handle: 0
+            callback_handle: 0,
+            ai_controller
         }
     }
 
@@ -90,7 +104,7 @@ where
     }
 
     pub fn is_playing(&self) -> bool {
-        self.state == GameState::Playing || self.state == GameState::AiPlaying
+        self.state == GameState::UserPlaying || self.state == GameState::AiPlaying
     }
 
     pub fn stop(&mut self) {
@@ -116,6 +130,7 @@ where
 
                     if orchestrator.state == GameState::GameOver
                         || orchestrator.state == GameState::Paused {
+                        debug!("game over exit loop");
                         return;
                     }
     
@@ -129,10 +144,7 @@ where
     
                     orchestrator.last_timestamp = timestamp;
     
-                    if !orchestrator.on_game_loop() {
-                        debug!("on_game_loop false");
-                        return;
-                    }
+                    orchestrator.on_game_loop();
                     
                     let callback = orchestrator.callback.as_ref().unwrap();
                     orchestrator.frame_scheduler.request_frame(callback);
@@ -157,7 +169,7 @@ where
                 orchestrator.state = GameState::AiPlaying;
             }
             else {
-                orchestrator.state = GameState::Playing;
+                orchestrator.state = GameState::UserPlaying;
             }
         }
         else {
@@ -170,11 +182,24 @@ where
 
     }
 
-    fn on_game_loop(&mut self) -> bool {
+    fn on_game_loop(&mut self) {
     
-        if self.game.update() {
-            self.on_score.invoke();
+        let mut direction = self.game.direction;
+
+        if let GameState::AiPlaying = self.state {
+            let ai_direction = self.ai_controller.get_direction(
+                &self.game.snake,
+                &self.game.foods,
+                &self.game.obstacles,
+                self.options.grid_size);
+
+            if let Some(ai_direction) = ai_direction {
+                debug!("direction from ai {:?}", ai_direction);
+                direction = ai_direction;
+            }
         }
+
+        let game_result = self.game.update(direction);
     
         let vertices = self.game.get_vertices();
         let length = vertices.len();
@@ -183,28 +208,34 @@ where
             length: length,
             vertice_size: length as i32 / 6
         };
+
         self.renderer.draw(&payload);
 
-        if self.game.is_over() {
-    
-            if self.game.is_played_by_ai {
-                self.reset();
-                self.game.is_played_by_ai = true;
-            }
-            else {
-                self.on_game_over.invoke();
-                self.state = GameState::GameOver;
-                return false;
-            }
+        match game_result {
+            GameResult::Noop => {
+
+            },
+            GameResult::Score => {
+                if let GameState::UserPlaying = self.state {
+                    self.on_score.invoke();
+                }
+            },
+            GameResult::Over => {
+                if let GameState::AiPlaying = self.state {
+                    self.reset();
+                }
+                else {
+                    self.on_game_over.invoke();
+                    self.state = GameState::GameOver;
+                }
+            },
         }
 
-        true
     }
 
     pub fn apply_options_and_reset(&mut self, options: GameOptions) {
         self.options = options;
         self.game.apply_options_and_reset(self.options.clone());
-        // self.game.set_color
     }
 
     pub fn setup_on_resize(game_orchestrator: &Arc<Mutex<Self>>) {
@@ -231,7 +262,7 @@ where
             Box::new(move |key: String| {
                 let mut game_orchestrator = game_orchestrator.lock().unwrap();
 
-                if game_orchestrator.state != GameState::Playing {
+                if game_orchestrator.state != GameState::UserPlaying {
                     return;
                 }
         
@@ -249,12 +280,134 @@ where
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::models::{Direction, GameOptions};
+//     use crate::randomizer::MockRandomizer;
+//     use crate::abstractions::frame_scheduler::MockFrameScheduler;
+//     use crate::abstractions::renderer::MockRenderer;
+//     use std::sync::{Arc, Mutex};
 
-    #[test]
-    fn test_game_orchestrator() {
-      
-    }
-}
+//     use mockall::{mock, predicate::*};
+
+//     #[test]
+//     fn test_initialization() {
+//         let options = GameOptions::default();
+//         let canvas = MockCanvasProvider::new();
+//         let document = MockDocumentProvider::new();
+//         let window = MockWindowProvider::new();
+//         let scheduler = MockFrameScheduler::new();
+//         let renderer = MockRenderer::new();
+//         let randomizer = MockRandomizer::new();
+//         let ai_controller = MockAiController::new();
+//         let on_score = MockJsInvoker::new();
+//         let on_game_over = MockJsInvoker::new();
+        
+//         let orchestrator = GameOrchestrator::new(
+//             options,
+//             canvas,
+//             document,
+//             window,
+//             scheduler,
+//             renderer,
+//             randomizer,
+//             ai_controller,
+//             on_score,
+//             on_game_over,
+//         );
+        
+//         assert_eq!(orchestrator.state, GameState::Idle);
+//     }
+
+//     #[test]
+//     fn test_state_transitions() {
+//         let mut orchestrator = setup_orchestrator();
+//         assert!(!orchestrator.is_playing());
+        
+//         orchestrator.state = GameState::UserPlaying;
+//         assert!(orchestrator.is_playing());
+        
+//         orchestrator.state = GameState::GameOver;
+//         assert!(orchestrator.is_game_over());
+//     }
+
+//     #[test]
+//     fn test_ai_moves_snake() {
+//         let mut orchestrator = setup_orchestrator();
+//         orchestrator.state = GameState::AiPlaying;
+        
+//         orchestrator.on_game_loop();
+        
+//         // Check if the game received a direction from AI
+//         assert_ne!(orchestrator.game.direction, Direction::default());
+//     }
+
+//     #[test]
+//     fn test_game_reset() {
+//         let mut orchestrator = setup_orchestrator();
+//         orchestrator.state = GameState::GameOver;
+//         orchestrator.reset();
+        
+//         assert_eq!(orchestrator.state, GameState::Idle);
+//     }
+
+//     #[test]
+//     fn test_game_over_triggers_callback() {
+//         let mut orchestrator = setup_orchestrator();
+//         orchestrator.state = GameState::UserPlaying;
+        
+//         orchestrator.game.result = GameResult::Over;
+//         orchestrator.on_game_loop();
+        
+//         assert_eq!(orchestrator.state, GameState::GameOver);
+//     }
+
+//     #[test]
+//     fn test_setup_key_bindings() {
+//         let orchestrator = Arc::new(Mutex::new(setup_orchestrator()));
+//         GameOrchestrator::setup_key_bindings(&orchestrator);
+        
+//         // Simulate key press event and check if direction changes
+//         let mut orchestrator = orchestrator.lock().unwrap();
+//         orchestrator.game.change_direction(Direction::Up);
+//         assert_eq!(orchestrator.game.direction, Direction::Up);
+//     }
+
+//     fn setup_orchestrator() -> GameOrchestrator<
+//         MockCanvasProvider,
+//         MockDocumentProvider,
+//         MockWindowProvider,
+//         MockClosureWrapper,
+//         MockJsInvoker,
+//         MockRandomizer,
+//         MockRenderer,
+//         MockFrameScheduler,
+//         MockAiController,
+//     > {
+//         let options = GameOptions::default();
+//         let canvas = MockCanvasProvider::new();
+//         let document = MockDocumentProvider::new();
+//         let window = MockWindowProvider::new();
+//         let scheduler = MockFrameScheduler::new();
+//         let renderer = MockRenderer::new();
+//         let randomizer = MockRandomizer::new();
+//         let ai_controller = MockAiController::new();
+//         let on_score = MockJsInvoker::new();
+//         let on_game_over = MockJsInvoker::new();
+
+//         GameOrchestrator::new(
+//             options,
+//             canvas,
+//             document,
+//             window,
+//             scheduler,
+//             renderer,
+//             randomizer,
+//             ai_controller,
+//             on_score,
+//             on_game_over,
+//         )
+//     }
+
+// }

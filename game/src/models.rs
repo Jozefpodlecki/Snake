@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 pub enum GameState {
     Idle = 0,
     AiPlaying = 1,
-    Playing = 2,
+    UserPlaying = 2,
     Paused = 3,
     GameOver = 4,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GameOptions {
     pub id: String,
@@ -27,17 +27,25 @@ pub struct VerticePayload {
     pub vertice_size: i32,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum Difficulty {
+    #[default]
     Easy,
     Hard
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
     Up,
     Down,
     Left,
     Right
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum GameResult {
+    Noop,
+    Score,
+    Over
 }

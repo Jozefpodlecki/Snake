@@ -46,3 +46,12 @@ impl WebGl2Renderer {
         WebGl2Renderer { context, last_buffer_size: 0 }
     }
 }
+
+#[cfg(test)]
+mockall::mock! {
+    pub RendererMock {}
+    impl Renderer for RendererMock {
+        fn set_viewport(&self, width: i32, height: i32);
+        fn draw(&mut self, vertices: &VerticePayload);
+    }
+}

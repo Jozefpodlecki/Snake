@@ -74,3 +74,4 @@ impl FrameScheduler<WasmClosureWrapper> for WebFrameScheduler {
         self.window.cancel_animation_frame(handle).unwrap();
     }
 }
+

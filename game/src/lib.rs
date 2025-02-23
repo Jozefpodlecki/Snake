@@ -1,7 +1,7 @@
 #![allow(static_mut_refs)]
 
 use std::{panic, sync::{Arc, Mutex}};
-use abstractions::{frame_scheduler::WebFrameScheduler, WebGl2Renderer};
+use abstractions::{frame_scheduler::WebFrameScheduler, GBFSAiController, WebGl2Renderer};
 use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use js_sys::Function;
 use log::{debug, info};
@@ -56,6 +56,7 @@ pub unsafe fn setup(options: JsValue,
     let randomizer = JsRandomizer;
     let frame_scheduler = WebFrameScheduler::new(window.clone());
     let renderer = WebGl2Renderer::new(context.clone());
+    let ai_controller = GBFSAiController::new();
     let mut game_orchestrator=  WasmGameOrchestrator::new(
         options,
         canvas,
@@ -64,6 +65,7 @@ pub unsafe fn setup(options: JsValue,
         frame_scheduler,
         renderer,
         randomizer,
+        ai_controller,
         on_score,
         on_game_over);
         
