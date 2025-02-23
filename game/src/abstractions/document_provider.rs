@@ -14,3 +14,11 @@ impl DocumentProvider for Document {
         closure.forget();
     }
 }
+
+#[cfg(test)]
+mockall::mock! {
+    pub DocumentProviderMock {}
+    impl DocumentProvider for DocumentProviderMock {
+        fn on_key_down(&self, handler: Box<dyn FnMut(String)>);
+    }
+}

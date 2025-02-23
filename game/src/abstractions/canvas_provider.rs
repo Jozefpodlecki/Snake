@@ -10,3 +10,11 @@ impl CanvasProvider for HtmlCanvasElement {
         self.set_height(height);
     }
 }
+
+#[cfg(test)]
+mockall::mock! {
+    pub CanvasProviderMock {}
+    impl CanvasProvider for CanvasProviderMock {
+        fn set_size(&self, width: u32, height: u32);
+    }
+}

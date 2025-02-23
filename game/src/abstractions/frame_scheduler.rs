@@ -75,3 +75,26 @@ impl FrameScheduler<WasmClosureWrapper> for WebFrameScheduler {
     }
 }
 
+#[cfg(test)]
+mockall::mock! {
+    pub ClosureWrapperMock {}
+    impl ClosureWrapper for ClosureWrapperMock {
+        fn new(callback: Box<dyn FnMut(f64)>) -> Self;
+    }
+
+    impl Clone for ClosureWrapperMock {
+        fn clone(&self) -> Self {
+            Self::new(Box::new(|_| {}))
+        }
+    }
+}
+
+// #[cfg(test)]
+// mockall::mock! {
+//     pub FrameSchedulerMock {}
+//     impl FrameScheduler<ClosureWrapperMock> for FrameSchedulerMock {
+//         fn request_frame(&self, callback: &ClosureWrapperMock) -> ClosureHandle;
+//         fn request_frame_after(&self, callback: &ClosureWrapperMock, timeout: i32);
+//         fn cancel(&self, handle: ClosureHandle);
+//     }
+// }

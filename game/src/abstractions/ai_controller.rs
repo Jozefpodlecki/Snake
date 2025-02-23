@@ -116,6 +116,20 @@ impl GBFSAiController {
 }
 
 #[cfg(test)]
+mockall::mock! {
+    pub AiControllerMock {}
+    impl AiController for AiControllerMock {
+        fn get_direction(
+            &self,
+            snake: &Snake,
+            foods: &[Food],
+            obstacles: &[Obstacle],
+            grid_size: i32,
+        ) -> Option<Direction>;
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::Direction;

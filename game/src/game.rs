@@ -265,7 +265,8 @@ mod tests {
         assert!(!game.obstacles.is_empty(), "Obstacles should be generated in Hard mode");
 
         let obstacle_pos = game.obstacles[0].position;
-        game.snake.move_to(obstacle_pos);
+        let position = (obstacle_pos.0 - 1, obstacle_pos.1);
+        game.snake.move_to(position);
 
         let result = game.update(game.direction);
         assert_eq!(result, GameResult::Over, "Game should be over if the snake hits an obstacle");
