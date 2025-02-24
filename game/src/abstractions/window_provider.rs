@@ -26,8 +26,8 @@ impl WindowProvider for Window {
 
 #[cfg(test)]
 mockall::mock! {
-    pub WindowProviderMock {}
-    impl WindowProvider for WindowProviderMock {
+    pub WindowProvider {}
+    impl WindowProvider for WindowProvider {
         fn get_inner_width(&self) -> f64;
         fn get_inner_height(&self) -> f64;
         fn on_resize(&self, handler: Box<dyn FnMut()>);

@@ -13,8 +13,8 @@ impl InvokeJs for Function {
 
 #[cfg(test)]
 mockall::mock! {
-    pub InvokeJsMock {}
-    impl InvokeJs for InvokeJsMock {
+    pub InvokeJsStub {}
+    impl InvokeJs for InvokeJsStub {
         fn invoke(&self);
     }
 }

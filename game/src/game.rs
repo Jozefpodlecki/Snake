@@ -94,10 +94,10 @@ impl<R: Randomizer> Game< R> {
         self.snake.move_to(new_head);
     }
 
-    pub fn update(&mut self, direction: Direction) -> GameResult {
+    pub fn update(&mut self) -> GameResult {
         let mut game_result = GameResult::Noop;
 
-        self.update_snake_position(direction);
+        self.update_snake_position(self.direction);
 
         let food_positions: Vec<_> = self.foods.iter().map(|food| food.position).collect();
 
@@ -221,7 +221,8 @@ mod tests {
         let mut game = setup_game(Difficulty::Easy);
 
         let initial_head_position = game.snake.get_head_position();
-        game.update(Direction::Right);
+        game.change_direction(Direction::Right);
+        game.update();
         let new_head_position = game.snake.get_head_position();
 
         assert_ne!(initial_head_position, new_head_position, "Snake should move when updated");
@@ -236,7 +237,7 @@ mod tests {
         let position = (food_position.0 - 1, food_position.1);
         game.snake.move_to(position);
 
-        let result = game.update(game.direction);
+        let result = game.update();
 
         assert_eq!(result, GameResult::Score, "Snake should score when consuming food");
         assert!(game.foods.iter().any(|food| food.position != food_position), "Food should be repositioned after being eaten");
@@ -254,7 +255,7 @@ mod tests {
         game.snake.move_to((2, 1));
         game.snake.move_to((1, 1)); // Colliding with itself
 
-        let result = game.update(game.direction);
+        let result = game.update();
         assert_eq!(result, GameResult::Over, "Game should be over if the snake collides with itself");
     }
 
@@ -268,7 +269,7 @@ mod tests {
         let position = (obstacle_pos.0 - 1, obstacle_pos.1);
         game.snake.move_to(position);
 
-        let result = game.update(game.direction);
+        let result = game.update();
         assert_eq!(result, GameResult::Over, "Game should be over if the snake hits an obstacle");
     }
 
@@ -287,7 +288,7 @@ mod tests {
     fn test_reset_game() {
         let mut game = setup_game(Difficulty::Easy);
 
-        game.update(Direction::Right);
+        game.change_direction(Direction::Right);
         game.reset();
 
         assert_eq!(game.foods.len() as u32, game.options.food_count, "Food count should reset");

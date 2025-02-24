@@ -17,8 +17,8 @@ impl DocumentProvider for Document {
 
 #[cfg(test)]
 mockall::mock! {
-    pub DocumentProviderMock {}
-    impl DocumentProvider for DocumentProviderMock {
+    pub DocumentProvider {}
+    impl DocumentProvider for DocumentProvider {
         fn on_key_down(&self, handler: Box<dyn FnMut(String)>);
     }
 }

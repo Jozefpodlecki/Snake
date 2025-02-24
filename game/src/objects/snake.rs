@@ -1,3 +1,5 @@
+use log::debug;
+
 
 pub struct Snake {
     body_length: usize,
@@ -78,6 +80,7 @@ impl Snake {
         }
 
         self.body[0] = new_head_position;
+        debug!("{:#?}", self.body)
     }
 
     pub fn get_head_position(&self) -> (i32, i32) {

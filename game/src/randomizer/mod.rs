@@ -58,3 +58,13 @@ impl Randomizer for OsRandomizer {
         (x, y)
     }
 }
+
+
+#[cfg(test)]
+mockall::mock! {
+    pub Randomizer {}
+    impl Randomizer for Randomizer {
+        fn get_random_color(&mut self) -> [f32; 4];
+        fn get_random_position_on_grid(&mut self, grid_size: i32) -> (i32, i32);
+    }
+}

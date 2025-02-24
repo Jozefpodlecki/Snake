@@ -117,8 +117,8 @@ impl GBFSAiController {
 
 #[cfg(test)]
 mockall::mock! {
-    pub AiControllerMock {}
-    impl AiController for AiControllerMock {
+    pub AiController {}
+    impl AiController for AiController {
         fn get_direction(
             &self,
             snake: &Snake,
