@@ -67,4 +67,5 @@ jobs:
           path: "./web/dist"
 
   deploy:
+    needs: build
     uses: ./.github/workflows/deploy.yml
