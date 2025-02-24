@@ -6,19 +6,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build --base=/Snake"
+    "build": "tsc && vite build --base=/Snake",
+    "test": "vitest"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.4",
     "@tailwindcss/vite": "^4.0.0",
+    "@testing-library/react": "^16.2.0",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react-swc": "^3.8.0",
     "antd": "^5.0.0",
     "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
+    "happy-dom": "^17.1.4",
     "lucide-react": "^0.475.0",
     "postcss": "^8.5.2",
     "react": "^19.0.0",

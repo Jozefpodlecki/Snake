@@ -1,7 +1,7 @@
 import Panel from "Panel";
 import { useEffect, useState } from "react";
 import init, { setup, stop, play, applyOptions } from "snake-game";
-import Start from "Start";
+import Start from "Prompt";
 import { GameOptions, GameState } from "types";
 
 const defaultOptions: GameOptions = {
@@ -14,8 +14,18 @@ const defaultOptions: GameOptions = {
     frameThresholdMs: 1000 / 10
 };
 
+function getOptions() {
+    const json = localStorage.getItem("settings");
+    const options = json ? JSON.parse(json) : defaultOptions;
+    return options;
+}
+
+function saveOptionsToLocalStorage(options: GameOptions) {
+    localStorage.setItem("settings", JSON.stringify(options));
+}
+
 function App() {
-    const [options, setOptions] = useState(defaultOptions);
+    const [options, setOptions] = useState(getOptions());
     const [state, setState] = useState<GameState>({ type: "loading" });
 
     useEffect(() => {
@@ -29,22 +39,6 @@ function App() {
 
     }, []);
 
-    useEffect(() => {
-
-        switch(state.type) {
-            case "start-prompt":
-                play(true);
-                break;
-            case "playing":
-                play(false);
-                break;
-            case "settings":
-                stop();
-                break;
-        }
-
-    }, [state]);
-
     function onKeyDown(event: KeyboardEvent) {
         
         if(event.code === "Space") {
@@ -53,6 +47,7 @@ function App() {
                     return state;
                 }
 
+                play(false);
                 return {
                     ...state,
                     type: "playing",
@@ -65,6 +60,7 @@ function App() {
     async function onLoad() {
         await init();
         setup(options, onScore, onGameOver);
+        play(true);
         setState(state => {
             return {
                 ...state,
@@ -98,12 +94,14 @@ function App() {
     function onToggle() {
         setState(state => {
             if(state.type === "settings") {
+                play(false);
                 return {
                     ...state,
                     type: "playing"
                 }
             }
 
+            stop();
             return {
                 ...state,
                 type: "settings"
@@ -113,6 +111,7 @@ function App() {
 
     function onOptionChange(options: GameOptions) {
         setOptions(options);
+        saveOptionsToLocalStorage(options);
         applyOptions(options);
     }
 

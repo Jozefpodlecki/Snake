@@ -28,7 +28,11 @@ cfg_if! {
     if #[cfg(feature = "console_log")] {
         fn init_log() {
             use log::Level;
+            #[cfg(debug_assertions)]
             console_log::init_with_level(Level::Debug).unwrap();
+            
+            #[cfg(not(debug_assertions))]
+            console_log::init_with_level(Level::Warn).unwrap();
         }
     } else {
         fn init_log() {}

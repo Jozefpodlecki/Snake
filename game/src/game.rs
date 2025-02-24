@@ -44,11 +44,15 @@ impl<R: Randomizer> Game< R> {
         self.snake.set_color(color.to_array());
 
         if self.options.difficulty == Difficulty::Hard {
-            let obstacles = (0..2).map(|_| Obstacle::new(
-                [0.7, 0.7, 0.7, 1.0],
-                self.randomizer.get_random_position_on_grid(self.options.grid_size), self.cell_size)).collect();
-            self.obstacles = obstacles;
+            self.create_obstacles(2);
         }
+    }
+
+    fn create_obstacles(&mut self, count: usize) {
+        let obstacles = (0..count).map(|_| Obstacle::new(
+            [0.7, 0.7, 0.7, 1.0],
+            self.randomizer.get_random_position_on_grid(self.options.grid_size), self.cell_size)).collect();
+        self.obstacles = obstacles;
     }
 
     fn get_free_position(
@@ -127,7 +131,18 @@ impl<R: Randomizer> Game< R> {
 
     pub fn apply_options_and_reset(&mut self, options: GameOptions) {
         debug!("apply_options_and_reset");
+
+        if self.options.difficulty != options.difficulty {
+            if options.difficulty == Difficulty::Hard {
+                self.create_obstacles(2);
+            }
+            else {
+                self.obstacles = vec![];
+            }
+        }
+
         self.options = options;
+
         self.cell_size = 2.0 / self.options.grid_size as f32;
 
         let color = self.options.snake_color.parse::<Color>().unwrap();

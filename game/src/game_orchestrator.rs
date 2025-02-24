@@ -124,7 +124,6 @@ where
             let game_orchestrator = game_orchestrator.clone();
 
             Box::new(move |timestamp: f64| {
-                debug!("request_frame");
 
                 if let Ok(mut orchestrator) = game_orchestrator.lock() {
 

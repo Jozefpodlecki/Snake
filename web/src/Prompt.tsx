@@ -1,18 +1,13 @@
 import { getLeaderboard } from "api";
+import type { LeaderboardEntry } from "api";
 import { FC, useEffect, useState } from "react";
 import { GameState } from "types";
-
-interface LeaderboardEntry {
-    name: string;
-    score: number;
-}
-
 
 interface Props {
     state: GameState;
 }
 
-const Start: FC<Props> = ({state}) => {
+const Prompt: FC<Props> = ({state}) => {
     const [prompt, setPrompt] = useState("Press space to start");
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     
@@ -71,4 +66,4 @@ const Start: FC<Props> = ({state}) => {
     </>
 }
 
-export default Start;
+export default Prompt;
