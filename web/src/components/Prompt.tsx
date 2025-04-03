@@ -1,7 +1,7 @@
-import { getLeaderboard } from "api";
-import type { LeaderboardEntry } from "api";
+import { getLeaderboard } from "lib/api";
+import type { LeaderboardEntry } from "lib/api";
 import { FC, useEffect, useState } from "react";
-import { GameState } from "types";
+import { GameState } from "lib/types";
 
 interface Props {
     state: GameState;

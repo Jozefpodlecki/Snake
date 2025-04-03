@@ -2,8 +2,8 @@
 import { FC } from "react";
 import { Ellipsis, ChevronLeft } from 'lucide-react';
 import { ColorPicker, Select, Slider } from 'antd';
-import { Github } from "Icons";
-import { GameOptions } from "types";
+import { Github } from "components/Icons";
+import { GameOptions } from "lib/types";
 import { AggregationColor } from "antd/es/color-picker/color";
 
 const difficulties = [

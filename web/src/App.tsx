@@ -1,13 +1,13 @@
-import Panel from "Panel";
+import Panel from "components/Panel";
 import { useEffect, useState } from "react";
 import init, { setup, stop, play, applyOptions } from "snake-game";
-import Start from "Prompt";
-import { GameOptions, GameState } from "types";
+import Start from "components/Prompt";
+import { GameOptions, GameState } from "lib/types";
 
 const defaultOptions: GameOptions = {
     id: "canvas",
     snakeColor: "#FFFFFF",
-    difficulty: "hard",
+    difficulty: "easy",
     gridSize: 30,
     foodCount: 5,
     fps: 10,

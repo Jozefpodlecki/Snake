@@ -11,7 +11,7 @@ export const getLeaderboard = async (): Promise<LeaderboardEntry[]> => {
         url = "https://localhost:5173/leaderboard.json"
     }
     else {
-        url = "https://raw.githubusercontent.com/Jozefpodlecki/Snake/leaderboard.json";
+        url = "https://raw.githubusercontent.com/Jozefpodlecki/Snake/refs/heads/master/web/public/leaderboard.json";
     }
 
     const response = await fetch(url);
