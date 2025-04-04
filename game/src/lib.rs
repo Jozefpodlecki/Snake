@@ -1,6 +1,7 @@
 #![allow(static_mut_refs)]
 
-use std::{panic, sync::{Arc, Mutex}};
+use std::rc::Rc;
+use std::{cell::RefCell, panic};
 use abstractions::{frame_scheduler::WebFrameScheduler, GBFSAiController, WebGl2Renderer};
 use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use js_sys::Function;
@@ -11,6 +12,7 @@ use utils::*;
 use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;
 use web_sys::{window, WebGl2RenderingContext};
+use crate::models::GameState;
 
 mod utils;
 mod constants;
@@ -22,7 +24,7 @@ mod abstractions;
 mod game_orchestrator;
 mod objects;
 
-static mut GAME_ORCHESTRATOR: Option<Arc<Mutex<WasmGameOrchestrator>>> = None;
+static mut GAME_ORCHESTRATOR: Option<Rc<RefCell<WasmGameOrchestrator>>> = None;
 
 cfg_if! {
     if #[cfg(feature = "console_log")] {
@@ -76,11 +78,12 @@ pub unsafe fn setup(options: JsValue,
     game_orchestrator.initialize();
     game_orchestrator.resize();
 
-    let shared_game_orchestrator = Arc::new(Mutex::new(game_orchestrator));
+
+    let shared_game_orchestrator = Rc::new(RefCell::new(game_orchestrator));
     GAME_ORCHESTRATOR = Some(shared_game_orchestrator.clone());
 
-    WasmGameOrchestrator::setup_on_resize(&shared_game_orchestrator);
-    WasmGameOrchestrator::setup_key_bindings(&shared_game_orchestrator);
+    WasmGameOrchestrator::setup_on_resize(shared_game_orchestrator.clone());
+    WasmGameOrchestrator::setup_key_bindings(shared_game_orchestrator);
 
     setup_webgl(&context);
 
@@ -96,14 +99,9 @@ pub unsafe fn setup(options: JsValue,
 pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
     let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
-    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
-
-        {
-            let mut game_orchestrator = game_orchestrator.lock().unwrap();
-
-            game_orchestrator.apply_options_and_reset(options);
-        }
-    }
+    let orchestrator = GAME_ORCHESTRATOR.clone().unwrap();
+    let mut orchestrator = orchestrator.borrow_mut();
+    orchestrator.apply_options_and_reset(options);
 
     Ok(())
 }
@@ -112,33 +110,13 @@ pub unsafe fn apply_options(options: JsValue) -> Result<(), JsValue> {
 pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) -> Result<(), JsValue> {
     debug!("play");
 
-    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
-        if let Ok(mut orchestrator) = game_orchestrator.lock() {
-
-            if orchestrator.is_game_over() {
-                debug!("orchestrator.is_game_over()");
-                orchestrator.reset();
-            }
-
-            if orchestrator.is_playing() {
-                debug!("orchestrator.is_playing");
-                orchestrator.stop();
-                orchestrator.reset();
-            }
-
-            drop(orchestrator);
-
-            GameOrchestrator::start_game_loop(game_orchestrator, is_ai_playing);
-        }
-        else {
-            debug!("play could not lock")
-        }
-
-        if game_orchestrator.is_poisoned() {
-            debug!("play is_poisoned")
-        }
+    {
+        let orchestrator = GAME_ORCHESTRATOR.clone().unwrap();
+        let mut orchestrator = orchestrator.borrow_mut();
+        orchestrator.play();
     }
 
+    GameOrchestrator::start_game_loop( GAME_ORCHESTRATOR.clone().unwrap(), is_ai_playing);
 
     Ok(())
 }
@@ -146,15 +124,9 @@ pub unsafe fn play(#[wasm_bindgen(js_name = "isAiPlaying")]is_ai_playing: bool) 
 #[wasm_bindgen]
 pub unsafe fn stop() -> Result<(), JsValue> {
 
-    if let Some(game_orchestrator) = &GAME_ORCHESTRATOR {
-        if let Ok(mut orchestrator) = game_orchestrator.lock() {
-            orchestrator.stop();
-        }
-
-        if game_orchestrator.is_poisoned() {
-            debug!("stop is_poisoned")
-        }
-    }
+    let orchestrator = GAME_ORCHESTRATOR.clone().unwrap();
+    let mut orchestrator = orchestrator.borrow_mut();
+    orchestrator.stop();
 
     Ok(())
 }

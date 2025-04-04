@@ -153,6 +153,7 @@ impl<R: Randomizer> Game< R> {
     }
 
     pub fn reset(&mut self) {
+        self.direction = Direction::Right;
         self.snake.reset();
         self.foods = (0..self.options.food_count).map(|_| Food::new(
             self.randomizer.get_random_color(),
@@ -199,7 +200,7 @@ impl<R: Randomizer> Game< R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{models::{GameOptions, Difficulty}, objects::Snake, randomizer::OsRandomizer};
+    use crate::{models::{GameOptions, Difficulty}, randomizer::OsRandomizer};
 
     fn default_game_options() -> GameOptions {
         GameOptions {

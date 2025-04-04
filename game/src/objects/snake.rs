@@ -1,6 +1,5 @@
 use log::debug;
 
-
 pub struct Snake {
     body_length: usize,
     body: Vec<(i32, i32)>,
@@ -75,12 +74,12 @@ impl Snake {
     }
 
     pub fn move_to(&mut self, new_head_position: (i32, i32)) {
+
         for i in (1..self.body.len()).rev() {
             self.body[i] = self.body[i - 1];
         }
 
         self.body[0] = new_head_position;
-        // debug!("{:#?}", self.body)
     }
 
     pub fn get_head_position(&self) -> (i32, i32) {

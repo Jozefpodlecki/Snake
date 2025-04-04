@@ -1,3 +1,5 @@
+use std::collections::{HashSet, VecDeque};
+
 use crate::{models::Direction, objects::{Food, Obstacle, Snake}};
 
 pub trait AiController {
@@ -10,10 +12,10 @@ pub trait AiController {
     ) -> Option<Direction>;
 }
 
-// Greedy Best-First Search (GBFS) with basic flood-fill for open space evaluation.
 pub struct GBFSAiController {}
 
 impl AiController for GBFSAiController {
+
     fn get_direction(
         &self,
         snake: &Snake,
@@ -23,39 +25,14 @@ impl AiController for GBFSAiController {
     ) -> Option<Direction> {
         if let Some(target_position) = self.get_closest_food(snake, foods) {
             let snake_head = snake.get_head_position();
-            let mut possible_moves = vec![];
-    
-            let directions = [
-                (Direction::Right, (snake_head.0 + 1, snake_head.1)),
-                (Direction::Left, (snake_head.0 - 1, snake_head.1)),
-                (Direction::Up, (snake_head.0, snake_head.1 + 1)),
-                (Direction::Down, (snake_head.0, snake_head.1 - 1)),
-            ];
-    
-            for (dir, position) in directions.iter() {
-                if snake.will_collide(*position) || self.is_obstacle(*position, obstacles) {
-                    continue;
-                }
-    
-                let open_space = self.count_reachable_cells(*position, snake, obstacles, grid_size);
-                possible_moves.push((*dir, *position, open_space));
-            }
-    
-            if let Some((best_direction, _, _)) = possible_moves
-                .into_iter()
-                .filter(|(_, _, open_space)| *open_space > 2) // Avoid tight spaces
-                .max_by_key(|(_, _, open_space)| *open_space) // Prefer safest path
-                .into_iter()
-                .min_by_key(|(_, pos, _)| {
-                    let dx = (pos.0 - target_position.0).abs();
-                    let dy = (pos.1 - target_position.1).abs();
-                    dx + dy
-                })
-            {
-                return Some(best_direction);
+            // BFS to find shortest path
+            let path = self.bfs_pathfinding(snake, obstacles, grid_size, snake_head, target_position);
+
+            if let Some(next_move) = path {
+                return Some(self.get_direction_from_move(snake_head, next_move));
             }
         }
-    
+
         None
     }
 }
@@ -65,6 +42,87 @@ impl GBFSAiController {
         GBFSAiController {}
     }
     
+    fn bfs_pathfinding(
+        &self,
+        snake: &Snake,
+        obstacles: &[Obstacle],
+        grid_size: i32,
+        start: (i32, i32),
+        target: (i32, i32),
+    ) -> Option<(i32, i32)> {
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+        let mut parent_map = std::collections::HashMap::new();
+        
+        // Directions: Right, Left, Up, Down
+        let directions = [
+            (1, 0),  // Right
+            (-1, 0), // Left
+            (0, 1),  // Up
+            (0, -1), // Down
+        ];
+
+        queue.push_back(start);
+        visited.insert(start);
+
+        while let Some(curr_pos) = queue.pop_front() {
+            if curr_pos == target {
+                // Reached the target, build the path
+                let mut path = Vec::new();
+                let mut pos = target;
+                while let Some(&parent) = parent_map.get(&pos) {
+                    path.push(pos);
+                    pos = parent;
+                }
+
+                path.reverse();
+                return path.first().cloned(); // Return the next move
+            }
+
+            for (dx, dy) in &directions {
+                let new_pos = (curr_pos.0 + dx, curr_pos.1 + dy);
+
+                if self.is_valid_move(new_pos, obstacles, &visited, grid_size, snake) {
+                    visited.insert(new_pos);
+                    queue.push_back(new_pos);
+                    parent_map.insert(new_pos, curr_pos);
+                }
+            }
+        }
+
+        None // No path found
+    }
+
+    fn is_valid_move(
+        &self,
+        position: (i32, i32),
+        obstacles: &[Obstacle],
+        visited: &HashSet<(i32, i32)>,
+        grid_size: i32,
+        snake: &Snake,
+    ) -> bool {
+        // Check if within bounds
+        if position.0 < 0 || position.1 < 0 || position.0 >= grid_size || position.1 >= grid_size {
+            return false;
+        }
+
+        // Check if visited or if snake collides
+        if visited.contains(&position) || snake.will_collide(position) || self.is_obstacle(position, obstacles) {
+            return false;
+        }
+
+        true
+    }
+
+    fn get_direction_from_move(&self, start: (i32, i32), next_move: (i32, i32)) -> Direction {
+        match (next_move.0 - start.0, next_move.1 - start.1) {
+            (1, 0) => Direction::Right,
+            (-1, 0) => Direction::Left,
+            (0, 1) => Direction::Up,
+            (0, -1) => Direction::Down,
+            _ => Direction::Up, // Default, shouldn't happen
+        }
+    }
 
     fn get_closest_food(&self, snake: &Snake, foods: &[Food]) -> Option<(i32, i32)> {
         let snake_head = snake.get_head_position();
@@ -76,38 +134,6 @@ impl GBFSAiController {
         });
 
         food.map(|food| food.position)
-    }
-    
-    // Function to count open cells from a given position (basic flood-fill)
-    fn count_reachable_cells(
-        &self,
-        start: (i32, i32),
-        snake: &Snake,
-        obstacles: &[Obstacle],
-        grid_size: i32,
-    ) -> usize {
-        let mut visited = vec![vec![false; grid_size as usize]; grid_size as usize];
-        let mut queue = vec![start];
-        let mut count = 0;
-    
-        while let Some((x, y)) = queue.pop() {
-            let is_out_of_bounds_or_visited =
-                x < 0 || y < 0 || x >= grid_size || y >= grid_size || visited[x as usize][y as usize];
-    
-            if is_out_of_bounds_or_visited || snake.will_collide((x, y)) || self.is_obstacle((x, y), obstacles) {
-                continue;
-            }
-    
-            visited[x as usize][y as usize] = true;
-            count += 1;
-    
-            queue.push((x + 1, y));
-            queue.push((x - 1, y));
-            queue.push((x, y + 1));
-            queue.push((x, y - 1));
-        }
-    
-        count
     }
     
     fn is_obstacle(&self, position: (i32, i32), obstacles: &[Obstacle]) -> bool {
