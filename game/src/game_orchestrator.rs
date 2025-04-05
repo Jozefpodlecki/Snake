@@ -33,6 +33,7 @@ where
     canvas_provider: C,
     document_provider: D,
     window_provider: W,
+    closure_wrapper: CW,
     game: Game<R>,
     renderer: RE,
     frame_scheduler: FS,
@@ -60,6 +61,7 @@ where
         canvas_provider: C,
         document_provider: D,
         window_provider: W,
+        closure_wrapper: CW,
         frame_scheduler: FS,
         renderer: RE,
         randomizer: R,
@@ -75,6 +77,7 @@ where
             canvas_provider,
             document_provider,
             window_provider,
+            closure_wrapper,
             frame_scheduler,
             renderer,
             on_score,
@@ -145,21 +148,18 @@ where
             })
         };
 
-        if let Ok(mut orchestrator) = game_orchestrator.try_borrow_mut() {
-            let closure_wrapper = CW::new(callback);
-            orchestrator.callback = Some(closure_wrapper.clone());
-            let callback_handle = orchestrator.frame_scheduler.request_frame(&closure_wrapper);
-            orchestrator.callback_handle = callback_handle;
+        let mut orchestrator = game_orchestrator.borrow_mut();
+        let mut closure_wrapper = orchestrator.closure_wrapper.clone();
+        closure_wrapper.create(callback);
+        orchestrator.callback = Some(closure_wrapper.clone());
+        let callback_handle = orchestrator.frame_scheduler.request_frame(&closure_wrapper);
+        orchestrator.callback_handle = callback_handle;
 
-            if is_ai_playing {
-                orchestrator.state = GameState::AiPlaying;
-            }
-            else {
-                orchestrator.state = GameState::UserPlaying;
-            }
+        if is_ai_playing {
+            orchestrator.state = GameState::AiPlaying;
         }
         else {
-            debug!("start_game_loop could not lock")
+            orchestrator.state = GameState::UserPlaying;
         }
 
     }
@@ -275,7 +275,6 @@ mod tests {
     use crate::game_orchestrator::frame_scheduler::MockClosureWrapper;
     use crate::game_orchestrator::ai_controller::MockAiController;
     use crate::abstractions::invoke_js::MockInvokeJsStub;
-    use crate::abstractions::frame_scheduler::ClosureWrapper;
     
     use mockall::{mock, predicate::*};
 
@@ -296,6 +295,7 @@ mod tests {
         pub mock_document_provider: MockDocumentProvider,
         pub mock_window_rovider: MockWindowProvider,
         pub mock_frame_scheduler: MockFrameScheduler,
+        pub mock_closure_wrapper: MockClosureWrapper,
         pub mock_renderer: MockRenderer,
         pub mock_randomizer: MockRandomizer,
         pub mock_ai_controller: MockAiController,
@@ -309,6 +309,7 @@ mod tests {
         let canvas = MockCanvasProvider::new();
         let document = MockDocumentProvider::new();
         let window = MockWindowProvider::new();
+        let closure_wrapper = MockClosureWrapper::new();
         let scheduler = MockFrameScheduler::new();
         let renderer = MockRenderer::new();
         let randomizer = MockRandomizer::new();
@@ -321,6 +322,7 @@ mod tests {
             canvas,
             document,
             window,
+            closure_wrapper,
             scheduler,
             renderer,
             randomizer,
@@ -353,6 +355,49 @@ mod tests {
         orchestrator.on_game_loop();
         
         assert_ne!(orchestrator.game.direction, Direction::Right);
+    }
+
+    #[test]
+    fn should_reset_state() {
+        let dependencies = setup_dependencies();
+
+        let mut orchestrator = setup_orchestrator(dependencies);
+        orchestrator.play();
+        orchestrator.stop();
+        orchestrator.reset(GameState::GameOver);
+    }
+
+    #[test]
+    fn test_resize_should_call_dom() {
+        let mut dependencies = setup_dependencies();
+
+        dependencies
+            .mock_window_rovider
+            .expect_get_inner_width()
+            .return_const(600);
+
+        dependencies
+            .mock_window_rovider
+            .expect_get_inner_height()
+            .return_const(480);
+
+        dependencies
+            .mock_canvas_provider
+            .expect_set_size()
+            .return_const(());
+
+        dependencies
+            .mock_window_rovider
+            .expect_on_resize()
+            .return_const(());
+
+        dependencies
+            .mock_renderer
+            .expect_set_viewport()
+            .return_const(());
+
+        let mut orchestrator = setup_orchestrator(dependencies);
+        orchestrator.resize();
     }
 
     #[test]
@@ -403,11 +448,47 @@ mod tests {
         assert_eq!(orchestrator.game.direction, Direction::Up);
     }
 
+    #[test]
+    fn should_start_game_loop() {
+        let mut dependencies = setup_dependencies();
+
+        dependencies
+            .mock_document_provider
+            .expect_on_key_down()
+            .returning(|_| {});
+
+        dependencies
+            .mock_closure_wrapper
+            .expect_clone()
+            .returning(|| {
+                let mut wrapper = MockClosureWrapper::new();
+
+                wrapper
+                    .expect_clone()
+                    .returning(|| MockClosureWrapper::new());
+
+                wrapper
+                    .expect_create()
+                    .return_const(());
+
+                wrapper
+            });
+
+        dependencies
+            .mock_frame_scheduler
+            .expect_request_frame()
+            .return_const(0);
+
+        let orchestrator = Rc::new(RefCell::new(setup_orchestrator(dependencies)));
+        GameOrchestrator::start_game_loop(orchestrator.clone(), false);
+    }
+
     fn setup_dependencies() -> Dependencies {
         let mut dependencies = Dependencies {
             mock_canvas_provider: MockCanvasProvider::new(),
             mock_document_provider: MockDocumentProvider::new(),
             mock_window_rovider: MockWindowProvider::new(),
+            mock_closure_wrapper: MockClosureWrapper::new(),
             mock_frame_scheduler: MockFrameScheduler::new(),
             mock_renderer: MockRenderer::new(),
             mock_randomizer: MockRandomizer::new(),
@@ -450,6 +531,7 @@ mod tests {
             dependencies.mock_canvas_provider,
             dependencies.mock_document_provider,
             dependencies.mock_window_rovider,
+            dependencies.mock_closure_wrapper,
             dependencies.mock_frame_scheduler,
             dependencies.mock_renderer,
             dependencies.mock_randomizer,

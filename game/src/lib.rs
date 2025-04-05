@@ -101,16 +101,3 @@ pub unsafe fn stop() -> Result<(), JsValue> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::abstractions::invoke_js::MockInvokeJsStub;
-
-    use super::*;
-
-
-    #[test]
-    fn should_setup() {
-     
-    }
-}

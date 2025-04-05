@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::{window, Document, HtmlCanvasElement, WebGl2RenderingContext, Window};
 
 use crate::abstractions::frame_scheduler::{WasmClosureWrapper, WebFrameScheduler};
-use crate::abstractions::{GreedyBfsAi, InvokeJs, WebGl2Renderer};
+use crate::abstractions::{ClosureWrapper, GreedyBfsAi, InvokeJs, WebGl2Renderer};
 use crate::game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
 use crate::models::GameOptions;
 use crate::randomizer::JsRandomizer;
@@ -40,11 +40,13 @@ impl<T: InvokeJs> GameOrchestratorFactory<T> for WasmGameOrchestratorFactory {
     let frame_scheduler = WebFrameScheduler::new(window.clone());
     let renderer = WebGl2Renderer::new(context.clone());
     let ai_controller = GreedyBfsAi::new();
+    let closure_wrapper = WasmClosureWrapper::new();
     let orchestrator=  GameOrchestrator::new(
         options,
         canvas,
         document,
         window,
+        closure_wrapper,
         frame_scheduler,
         renderer,
         randomizer,

@@ -7,11 +7,7 @@ use web_sys::Window;
 pub type ClosureHandle = i32;
 
 pub trait ClosureWrapper: Clone {
-    fn new(callback: Box<dyn FnMut(f64)>) -> Self;
-}
-
-pub struct WasmClosureWrapper {
-    pub closure: Rc<RefCell<Closure<dyn FnMut(f64)>>>
+    fn create(&mut self, callback: Box<dyn FnMut(f64)>);
 }
 
 pub trait FrameScheduler<CW: ClosureWrapper> {
@@ -33,12 +29,22 @@ impl WebFrameScheduler {
 }
 
 impl ClosureWrapper for WasmClosureWrapper {
-    fn new(callback: Box<dyn FnMut(f64)>) -> Self {
+    fn create(&mut self, callback: Box<dyn FnMut(f64)>) {
         let closure = Closure::wrap(callback);
         let closure = Rc::new(RefCell::new(closure));
+        self.closure = Some(closure);
+    }
+}
+
+pub struct WasmClosureWrapper {
+    pub closure: Option<Rc<RefCell<Closure<dyn FnMut(f64)>>>>
+}
+
+impl WasmClosureWrapper {
+    pub fn new() -> Self {
 
         Self {
-            closure,
+            closure: None
         }
     }
 }
@@ -51,7 +57,7 @@ impl Clone for WasmClosureWrapper {
 
 impl FrameScheduler<WasmClosureWrapper> for WebFrameScheduler {
     fn request_frame(&self, handler: &WasmClosureWrapper) -> ClosureHandle {
-        let borrowed_closure = handler.closure.borrow();
+        let borrowed_closure = handler.closure.as_ref().unwrap().borrow();
         let js_function = borrowed_closure.as_ref().unchecked_ref();
         self.window.request_animation_frame(js_function).unwrap()
     }
@@ -61,7 +67,7 @@ impl FrameScheduler<WasmClosureWrapper> for WebFrameScheduler {
         let window = self.window.clone();
         let request_frame_handler = handler.clone();
         let timeout_closure = Closure::wrap(Box::new(move || {
-            let request_frame_handler = request_frame_handler.closure.borrow();
+            let request_frame_handler = request_frame_handler.closure.as_ref().unwrap().borrow();
             let js_function = request_frame_handler.as_ref().unchecked_ref();
             window.request_animation_frame(js_function).unwrap();
         }) as Box<dyn FnMut()>);
@@ -79,7 +85,7 @@ impl FrameScheduler<WasmClosureWrapper> for WebFrameScheduler {
 mockall::mock! {
     pub ClosureWrapper {}
     impl ClosureWrapper for ClosureWrapper {
-        fn new(callback: Box<dyn FnMut(f64)>) -> Self;
+        fn create(&mut self, callback: Box<dyn FnMut(f64)>);
     }
 
     impl Clone for ClosureWrapper {
