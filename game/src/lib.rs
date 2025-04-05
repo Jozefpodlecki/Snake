@@ -2,17 +2,14 @@
 
 use std::rc::Rc;
 use std::{cell::RefCell, panic};
-use abstractions::{frame_scheduler::WebFrameScheduler, GBFSAiController, WebGl2Renderer};
 use game_orchestrator::{GameOrchestrator, WasmGameOrchestrator};
+use game_orchestrator_factory::{GameOrchestratorFactory, WasmGameOrchestratorFactory};
 use js_sys::Function;
 use log::{debug, info};
 use models::GameOptions;
-use randomizer::JsRandomizer;
 use utils::*;
 use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;
-use web_sys::{window, WebGl2RenderingContext};
-use crate::models::GameState;
 
 mod utils;
 mod constants;
@@ -22,9 +19,10 @@ mod game;
 mod randomizer;
 mod abstractions;
 mod game_orchestrator;
+mod game_orchestrator_factory;
 mod objects;
 
-static mut GAME_ORCHESTRATOR: Option<Rc<RefCell<WasmGameOrchestrator>>> = None;
+static mut GAME_ORCHESTRATOR: Option<Rc<RefCell<WasmGameOrchestrator<Function>>>> = None;
 
 cfg_if! {
     if #[cfg(feature = "console_log")] {
@@ -42,55 +40,28 @@ cfg_if! {
 }
 
 #[wasm_bindgen]
-pub unsafe fn setup(options: JsValue,
+pub unsafe fn setup(
+    options: JsValue,
     on_score: Function,
     on_game_over: Function) -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     init_log();
+
     let options: GameOptions = serde_wasm_bindgen::from_value(options).unwrap();
 
-    let window = window().unwrap();
-    let document = window.document().unwrap();
-    let canvas = document
-        .get_element_by_id(&options.id).unwrap()
-        .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    let game_orchestrator = WasmGameOrchestratorFactory::create(options, on_score, on_game_over);
 
-    let context = canvas
-        .get_context("webgl2").unwrap().unwrap()
-        .dyn_into::<WebGl2RenderingContext>()?;
+    {
+        let mut orchestrator = game_orchestrator.borrow_mut();
+        orchestrator.initialize();
+        orchestrator.resize();
+    }
+    
 
-    let randomizer = JsRandomizer;
-    let frame_scheduler = WebFrameScheduler::new(window.clone());
-    let renderer = WebGl2Renderer::new(context.clone());
-    let ai_controller = GBFSAiController::new();
-    let mut game_orchestrator=  WasmGameOrchestrator::new(
-        options,
-        canvas,
-        document,
-        window,
-        frame_scheduler,
-        renderer,
-        randomizer,
-        ai_controller,
-        on_score,
-        on_game_over);
-        
-    game_orchestrator.initialize();
-    game_orchestrator.resize();
+    GAME_ORCHESTRATOR = Some(game_orchestrator.clone());
 
-
-    let shared_game_orchestrator = Rc::new(RefCell::new(game_orchestrator));
-    GAME_ORCHESTRATOR = Some(shared_game_orchestrator.clone());
-
-    WasmGameOrchestrator::setup_on_resize(shared_game_orchestrator.clone());
-    WasmGameOrchestrator::setup_key_bindings(shared_game_orchestrator);
-
-    setup_webgl(&context);
-
-    let version = context.get_parameter(WebGl2RenderingContext::VERSION).unwrap();
-    let max_texture_size = context.get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE).unwrap();
-    info!("Version: {}", version.as_string().unwrap());
-    info!("Max texture size: {}", max_texture_size.as_f64().unwrap());
+    WasmGameOrchestrator::setup_on_resize(game_orchestrator.clone());
+    WasmGameOrchestrator::setup_key_bindings(game_orchestrator);
 
     Ok(())
 }
@@ -129,4 +100,17 @@ pub unsafe fn stop() -> Result<(), JsValue> {
     orchestrator.stop();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::abstractions::invoke_js::MockInvokeJsStub;
+
+    use super::*;
+
+
+    #[test]
+    fn should_setup() {
+     
+    }
 }

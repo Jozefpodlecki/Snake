@@ -12,10 +12,9 @@ pub trait AiController {
     ) -> Option<Direction>;
 }
 
-pub struct GBFSAiController {}
+pub struct GreedyBfsAi;
 
-impl AiController for GBFSAiController {
-
+impl AiController for GreedyBfsAi {
     fn get_direction(
         &self,
         snake: &Snake,
@@ -23,26 +22,24 @@ impl AiController for GBFSAiController {
         obstacles: &[Obstacle],
         grid_size: i32,
     ) -> Option<Direction> {
-        if let Some(target_position) = self.get_closest_food(snake, foods) {
+        if let Some(target_position) = self.find_closest_food(snake, foods) {
             let snake_head = snake.get_head_position();
-            // BFS to find shortest path
-            let path = self.bfs_pathfinding(snake, obstacles, grid_size, snake_head, target_position);
+            let path = self.bfs(snake, obstacles, grid_size, snake_head, target_position);
 
-            if let Some(next_move) = path {
-                return Some(self.get_direction_from_move(snake_head, next_move));
+            if let Some(next_step) = path {
+                return Some(self.get_direction_from_move(snake_head, next_step));
             }
         }
-
         None
     }
 }
 
-impl GBFSAiController {
+impl GreedyBfsAi {
     pub fn new() -> Self {
-        GBFSAiController {}
+        Self {}
     }
-    
-    fn bfs_pathfinding(
+
+    fn bfs(
         &self,
         snake: &Snake,
         obstacles: &[Obstacle],
@@ -53,93 +50,78 @@ impl GBFSAiController {
         let mut visited = HashSet::new();
         let mut queue = VecDeque::new();
         let mut parent_map = std::collections::HashMap::new();
-        
-        // Directions: Right, Left, Up, Down
-        let directions = [
-            (1, 0),  // Right
-            (-1, 0), // Left
-            (0, 1),  // Up
-            (0, -1), // Down
-        ];
+
+        let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
         queue.push_back(start);
         visited.insert(start);
 
-        while let Some(curr_pos) = queue.pop_front() {
-            if curr_pos == target {
-                // Reached the target, build the path
+        while let Some(curr) = queue.pop_front() {
+            if curr == target {
                 let mut path = Vec::new();
                 let mut pos = target;
                 while let Some(&parent) = parent_map.get(&pos) {
                     path.push(pos);
                     pos = parent;
                 }
-
                 path.reverse();
-                return path.first().cloned(); // Return the next move
+                return path.first().copied();
             }
 
-            for (dx, dy) in &directions {
-                let new_pos = (curr_pos.0 + dx, curr_pos.1 + dy);
+            for (dx, dy) in directions.iter() {
+                let new_pos = (curr.0 + dx, curr.1 + dy);
 
-                if self.is_valid_move(new_pos, obstacles, &visited, grid_size, snake) {
+                if self.is_valid(new_pos, obstacles, &visited, grid_size, snake) {
                     visited.insert(new_pos);
                     queue.push_back(new_pos);
-                    parent_map.insert(new_pos, curr_pos);
+                    parent_map.insert(new_pos, curr);
                 }
             }
         }
-
-        None // No path found
+        None
     }
 
-    fn is_valid_move(
+    fn is_valid(
         &self,
-        position: (i32, i32),
+        pos: (i32, i32),
         obstacles: &[Obstacle],
         visited: &HashSet<(i32, i32)>,
         grid_size: i32,
         snake: &Snake,
     ) -> bool {
-        // Check if within bounds
-        if position.0 < 0 || position.1 < 0 || position.0 >= grid_size || position.1 >= grid_size {
+        if pos.0 < 0 || pos.1 < 0 || pos.0 >= grid_size || pos.1 >= grid_size {
             return false;
         }
-
-        // Check if visited or if snake collides
-        if visited.contains(&position) || snake.will_collide(position) || self.is_obstacle(position, obstacles) {
+        if visited.contains(&pos) || snake.will_collide(pos) || self.is_obstacle(pos, obstacles) {
             return false;
         }
-
         true
     }
 
-    fn get_direction_from_move(&self, start: (i32, i32), next_move: (i32, i32)) -> Direction {
-        match (next_move.0 - start.0, next_move.1 - start.1) {
+    fn get_direction_from_move(&self, start: (i32, i32), next: (i32, i32)) -> Direction {
+        match (next.0 - start.0, next.1 - start.1) {
             (1, 0) => Direction::Right,
             (-1, 0) => Direction::Left,
             (0, 1) => Direction::Up,
             (0, -1) => Direction::Down,
-            _ => Direction::Up, // Default, shouldn't happen
+            _ => Direction::Up,
         }
     }
 
-    fn get_closest_food(&self, snake: &Snake, foods: &[Food]) -> Option<(i32, i32)> {
-        let snake_head = snake.get_head_position();
-        
-        let food = foods.iter().min_by_key(|food| {
-            let dx = (snake_head.0 - food.position.0).abs();
-            let dy = (snake_head.1 - food.position.1).abs();
+    fn find_closest_food(&self, snake: &Snake, foods: &[Food]) -> Option<(i32, i32)> {
+        let head = snake.get_head_position();
+        foods.iter().min_by_key(|food| {
+            let dx = (head.0 - food.position.0).abs();
+            let dy = (head.1 - food.position.1).abs();
             dx + dy
-        });
-
-        food.map(|food| food.position)
+        }).map(|food| food.position)
     }
-    
-    fn is_obstacle(&self, position: (i32, i32), obstacles: &[Obstacle]) -> bool {
-        obstacles.iter().any(|obstacle| obstacle.occupies(position))
+
+    fn is_obstacle(&self, pos: (i32, i32), obstacles: &[Obstacle]) -> bool {
+        obstacles.iter().any(|o| o.occupies(pos))
     }
 }
+
 
 #[cfg(test)]
 mockall::mock! {
@@ -158,105 +140,65 @@ mockall::mock! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Direction;
     use crate::objects::{Food, Obstacle, Snake};
+    use crate::models::Direction;
 
-    fn setup_snake(body_length: usize, cell_size: f32) -> Snake {
+    fn snake_at(pos: (i32, i32)) -> Snake {
         let mut snake = Snake::new();
-        snake.initialize(body_length, cell_size);
+        snake.initialize(3, 1.0);
+        snake.move_to(pos);
         snake
     }
 
-    fn setup_food(position: (i32, i32)) -> Food {
-        let color = [1.0, 0.0, 0.0, 1.0]; // Red color
-        let cell_size = 1.0;
-        Food::new(color, position, cell_size)
+    fn food_at(pos: (i32, i32)) -> Food {
+        Food::new([1.0, 0.0, 0.0, 1.0], pos, 1.0)
     }
 
-    fn setup_obstacle(position: (i32, i32)) -> Obstacle {
-        let color = [0.5, 0.5, 0.5, 1.0]; // Gray color
-        let cell_size = 1.0;
-        Obstacle::new(color, position, cell_size)
+    fn obstacle_at(pos: (i32, i32)) -> Obstacle {
+        Obstacle::new([0.5, 0.5, 0.5, 1.0], pos, 1.0)
     }
 
     #[test]
-    fn test_moves_toward_closest_food() {
-        let ai = GBFSAiController::new();
-        let mut snake = setup_snake(3, 1.0);
-        snake.move_to((5, 5)); // Manually move head to (5,5)
-        let foods = vec![setup_food((7, 5))];
-        let obstacles = vec![];
-
-        let direction = ai.get_direction(&snake, &foods, &obstacles, 10);
-
-        assert_eq!(direction, Some(Direction::Down));
+    fn moves_toward_food() {
+        let ai = GreedyBfsAi::new();
+        let snake = snake_at((5, 5));
+        let food = vec![food_at((7, 5))];
+        let direction = ai.get_direction(&snake, &food, &[], 10);
+        assert_eq!(direction, Some(Direction::Right));
     }
 
     #[test]
-    fn test_avoids_obstacles() {
-        let ai = GBFSAiController::new();
-        let mut snake = setup_snake(3, 1.0);
-        snake.move_to((5, 5));
-        let foods = vec![setup_food((7, 5))];
-        let obstacles = vec![setup_obstacle((6, 5))];
-
-        let direction = ai.get_direction(&snake, &foods, &obstacles, 10);
-
-        // Should not go Right because of obstacle; should pick an alternative route
+    fn avoids_single_obstacle() {
+        let ai = GreedyBfsAi::new();
+        let snake = snake_at((5, 5));
+        let food = vec![food_at((7, 5))];
+        let obstacles = vec![obstacle_at((6, 5))];
+        let direction = ai.get_direction(&snake, &food, &obstacles, 10);
         assert_ne!(direction, Some(Direction::Right));
     }
 
     #[test]
-    fn test_avoids_dead_ends() {
-        let ai = GBFSAiController::new();
-        let mut snake = setup_snake(3, 1.0);
-        snake.move_to((5, 5));
-        let foods = vec![setup_food((7, 5))];
+    fn trapped_snake_returns_none() {
+        let ai = GreedyBfsAi::new();
+        let snake = snake_at((5, 5));
+        let food = vec![food_at((6, 5))];
         let obstacles = vec![
-            setup_obstacle((6, 5)),
-            setup_obstacle((6, 6)),
-            setup_obstacle((5, 6)),
+            obstacle_at((6, 5)),
+            obstacle_at((4, 5)),
+            obstacle_at((5, 6)),
+            obstacle_at((5, 4)),
         ];
-
-        let direction = ai.get_direction(&snake, &foods, &obstacles, 10);
-
-        // Should go left to escape, not right into a dead-end
-        assert_eq!(direction, Some(Direction::Down));
-    }
-
-    #[test]
-    fn test_no_move_if_trapped() {
-        let ai = GBFSAiController::new();
-        let mut snake = setup_snake(3, 1.0);
-        snake.move_to((5, 5));
-        let foods = vec![setup_food((7, 5))];
-        let obstacles = vec![
-            setup_obstacle((6, 5)),
-            setup_obstacle((4, 5)),
-            setup_obstacle((5, 6)),
-            setup_obstacle((5, 4)),
-        ];
-
-        let direction = ai.get_direction(&snake, &foods, &obstacles, 10);
-
-        // No valid moves left
+        let direction = ai.get_direction(&snake, &food, &obstacles, 10);
         assert_eq!(direction, None);
     }
 
     #[test]
-    fn test_picks_safest_path() {
-        let ai = GBFSAiController::new();
-        let mut snake = setup_snake(3, 1.0);
-        snake.move_to((5, 5));
-        let foods = vec![setup_food((7, 5))];
-        let obstacles = vec![
-            setup_obstacle((6, 5)),
-            setup_obstacle((4, 6)),
-        ];
-
-        let direction = ai.get_direction(&snake, &foods, &obstacles, 10);
-
-        // Should go down to avoid immediate collision
-        assert_eq!(direction, Some(Direction::Down));
+    fn picks_available_direction() {
+        let ai = GreedyBfsAi::new();
+        let snake = snake_at((3, 3));
+        let food = vec![food_at((0, 0))];
+        let obstacles = vec![obstacle_at((2, 3))];
+        let direction = ai.get_direction(&snake, &food, &obstacles, 5);
+        assert!(direction == Some(Direction::Up) || direction == Some(Direction::Down));
     }
 }

@@ -42,28 +42,6 @@ pub fn create_program(
     Some(program)
 }
 
-pub fn setup_webgl(context: &WebGl2RenderingContext) {
-
-    let vertex_shader = create_shader(&context, WebGl2RenderingContext::VERTEX_SHADER, VS_SOURCE).unwrap();
-    let fragment_shader = create_shader(&context, WebGl2RenderingContext::FRAGMENT_SHADER, FS_SOURCE).unwrap();
-    let program = create_program(&context, vertex_shader, fragment_shader).unwrap();
-
-    context.use_program(Some(&program));
-    
-    let position_buffer = context.create_buffer();
-    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, position_buffer.as_ref());
-
-    let position_location = context.get_attrib_location(&program, "a_position") as u32;
-    let stride = 6 * 4;
-
-    context.enable_vertex_attrib_array(position_location);
-    context.vertex_attrib_pointer_with_i32(position_location, 2, WebGl2RenderingContext::FLOAT, false, stride, 0);
-
-    let color_location = context.get_attrib_location(&program, "a_color") as u32;
-    context.vertex_attrib_pointer_with_i32(color_location, 4, WebGl2RenderingContext::FLOAT, false, stride, 2 * 4);
-    context.enable_vertex_attrib_array(color_location);
-}
-
 pub fn create_key_direction_map() -> HashMap<String, Direction> {
     let key_direction_pairs = vec![
         ("a", Direction::Left),

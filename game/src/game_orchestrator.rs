@@ -1,21 +1,20 @@
 use std::{cell::RefCell, rc::Rc};
 
-use js_sys::Function;
 use log::debug;
 use web_sys::{Document, HtmlCanvasElement, Window};
 
 use crate::{abstractions::{frame_scheduler::{WasmClosureWrapper, WebFrameScheduler}, *}, game::Game, models::{GameOptions, GameResult, GameState, VerticePayload}, randomizer::{JsRandomizer, Randomizer}, utils::create_key_direction_map};
 
-pub type WasmGameOrchestrator = GameOrchestrator<
+pub type WasmGameOrchestrator<T> = GameOrchestrator<
     HtmlCanvasElement,
     Document,
     Window,
     WasmClosureWrapper,
-    Function,
+    T,
     JsRandomizer,
     WebGl2Renderer,
     WebFrameScheduler,
-    GBFSAiController>;
+    GreedyBfsAi>;
 
 pub struct GameOrchestrator <C, D, W, CW, T, R, RE, FS, A>
 where
@@ -88,6 +87,7 @@ where
     }
 
     pub fn initialize(&mut self) {
+        self.renderer.setup();
         self.game.initialize();
     }
 
@@ -261,6 +261,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
     use crate::abstractions::canvas_provider::MockCanvasProvider;
     use crate::game_orchestrator::GameOrchestrator;
     use crate::models::{Difficulty, Direction, GameOptions, GameState};
@@ -272,7 +275,8 @@ mod tests {
     use crate::game_orchestrator::frame_scheduler::MockClosureWrapper;
     use crate::game_orchestrator::ai_controller::MockAiController;
     use crate::abstractions::invoke_js::MockInvokeJsStub;
-
+    use crate::abstractions::frame_scheduler::ClosureWrapper;
+    
     use mockall::{mock, predicate::*};
 
     type TestGameOrchestrator = GameOrchestrator<
@@ -328,22 +332,14 @@ mod tests {
         assert_eq!(orchestrator.state, GameState::Idle);
     }
 
-    // #[test]
-    // fn test_state_transitions() {
-    //     let dependencies = setup_dependencies();
-    //     let mut orchestrator = setup_orchestrator(dependencies);
-    //     assert!(!orchestrator.is_playing());
-        
-    //     orchestrator.state = GameState::UserPlaying;
-    //     assert!(orchestrator.is_playing());
-        
-    //     orchestrator.state = GameState::GameOver;
-    //     assert!(orchestrator.is_game_over());
-    // }
-
     #[test]
     fn test_ai_moves_snake() {
         let mut dependencies = setup_dependencies();
+
+        dependencies
+            .mock_renderer
+            .expect_setup()
+            .return_const(());
 
         dependencies.mock_ai_controller
             .expect_get_direction()
@@ -362,6 +358,11 @@ mod tests {
     #[test]
     fn test_game_over_triggers_callback() {
         let mut dependencies = setup_dependencies();
+
+        dependencies
+            .mock_renderer
+            .expect_setup()
+            .return_const(());
 
         dependencies
             .mock_on_game_over
@@ -384,23 +385,23 @@ mod tests {
         assert_eq!(orchestrator.state, GameState::GameOver);
     }
 
-    // #[test]
-    // fn test_setup_key_bindings() {
-    //     let mut dependencies = setup_dependencies();
+    #[test]
+    fn test_setup_key_bindings() {
+        let mut dependencies = setup_dependencies();
 
-    //     dependencies
-    //         .mock_document_provider
-    //         .expect_on_key_down()
-    //         .returning(|_| {});
+        dependencies
+            .mock_document_provider
+            .expect_on_key_down()
+            .returning(|_| {});
 
-    //     let orchestrator = Arc::new(Mutex::new(setup_orchestrator(dependencies)));
-    //     GameOrchestrator::setup_key_bindings(&orchestrator);
+        let orchestrator = Rc::new(RefCell::new(setup_orchestrator(dependencies)));
+        GameOrchestrator::setup_key_bindings(orchestrator.clone());
         
-    //     // Simulate key press event and check if direction changes
-    //     let mut orchestrator = orchestrator.lock().unwrap();
-    //     orchestrator.game.change_direction(Direction::Up);
-    //     assert_eq!(orchestrator.game.direction, Direction::Up);
-    // }
+        // Simulate key press event and check if direction changes
+        let mut orchestrator = orchestrator.borrow_mut();
+        orchestrator.game.change_direction(Direction::Up);
+        assert_eq!(orchestrator.game.direction, Direction::Up);
+    }
 
     fn setup_dependencies() -> Dependencies {
         let mut dependencies = Dependencies {

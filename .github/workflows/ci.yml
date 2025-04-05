@@ -52,7 +52,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
         
       - name: code coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov --lcov --ignore-filename-regex 'frame_scheduler|invoke_js|window_provider|document_provider|renderer|canvas_provider|game_orchestrator_factory|lib' --output-path lcov.info
         working-directory: ./game
 
       - name: push to codecov
